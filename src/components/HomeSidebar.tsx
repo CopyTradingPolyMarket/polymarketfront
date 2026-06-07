@@ -6,7 +6,7 @@ import type {
   LiveEvent,
   TrendingMarket,
   TopCategory,
-} from "@/src/types/sidebar";
+} from "@/types/sidebar";
 
 // ─── Data ───────────────────────────────────────────────────────────────────
 
