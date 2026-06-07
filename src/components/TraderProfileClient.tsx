@@ -5,7 +5,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, ReferenceLine,
 } from "recharts";
-import type { TraderProfile, TraderTrade, EarningsPoint } from "@/src/types/traderProfile";
+import type { TraderProfile, TraderTrade, EarningsPoint } from "@/types/Traderprofile";
 
 // ─── Tier config ──────────────────────────────────────────────────────────────
 const TIER_CONFIG = {

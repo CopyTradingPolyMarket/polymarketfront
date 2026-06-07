@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import type { TraderProfile } from "@/src/types/traderProfile";
+import type { TraderProfile } from "@/types/Traderprofile";
 
 // ─── Sidebar data ─────────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import type { TraderProfile, TraderTrade, EarningsPoint, SuggestedTrader } from "@/src/types/traderProfile";
+import type { TraderProfile, TraderTrade, EarningsPoint, SuggestedTrader } from "@/types/Traderprofile";
 
 // Helper to generate plausible earnings curve
 function makeEarnings(peak: number): EarningsPoint[] {
