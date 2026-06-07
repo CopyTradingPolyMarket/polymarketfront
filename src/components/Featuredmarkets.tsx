@@ -7,6 +7,14 @@ import {
   useCallback,
   useId,
 } from "react";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,7 +32,7 @@ export interface FeaturedMarket {
   options: MarketOption[];
   volume: string;
   endsAt: string;
-  chartPoints: number[];   // 0-100, length ~24
+  chartPoints: number[];
   flagEmoji?: string;
   recentTrades?: { amount: string; side: "yes" | "no" }[];
 }
@@ -115,222 +123,42 @@ export const FEATURED_MARKETS: FeaturedMarket[] = [
   },
 ];
 
-const AUTO_PLAY_INTERVAL = 5000; // ms
+const AUTO_PLAY_INTERVAL = 5500;
 
-// ─── Color maps ───────────────────────────────────────────────────────────────
+// ─── Color tokens ──────────────────────────────────────────────────────────────
 
-const LINE_COLOR: Record<string, string> = {
-  blue:   "#3b82f6",
-  green:  "#10b981",
-  red:    "#ef4444",
-  orange: "#f97316",
-  purple: "#8b5cf6",
+const COLOR_MAP: Record<string, { stroke: string; fill: string; text: string; pill: string }> = {
+  blue:   { stroke: "#38bdf8", fill: "rgba(56,189,248,0.12)",  text: "#38bdf8", pill: "rgba(56,189,248,0.1)"  },
+  green:  { stroke: "#34d399", fill: "rgba(52,211,153,0.12)",  text: "#34d399", pill: "rgba(52,211,153,0.1)"  },
+  red:    { stroke: "#f87171", fill: "rgba(248,113,113,0.12)", text: "#f87171", pill: "rgba(248,113,113,0.1)" },
+  orange: { stroke: "#fb923c", fill: "rgba(251,146,60,0.12)",  text: "#fb923c", pill: "rgba(251,146,60,0.1)"  },
+  purple: { stroke: "#a78bfa", fill: "rgba(167,139,250,0.12)", text: "#a78bfa", pill: "rgba(167,139,250,0.1)" },
 };
 
-const BADGE_CLASS: Record<string, string> = {
-  blue:   "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  green:  "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  red:    "bg-red-500/10 text-red-400 border-red-500/20",
-  orange: "bg-orange-500/10 text-orange-400 border-orange-500/20",
-  purple: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+const CATEGORY_DOT: Record<string, string> = {
+  Politics:    "#a78bfa",
+  Sports:      "#38bdf8",
+  Geopolitics: "#fb923c",
+  Crypto:      "#34d399",
+  Tennis:      "#38bdf8",
 };
 
-const BAR_CLASS: Record<string, string> = {
-  blue:   "bg-blue-500",
-  green:  "bg-emerald-500",
-  red:    "bg-red-500",
-  orange: "bg-orange-400",
-  purple: "bg-violet-500",
-};
+// ─── Recharts custom tooltip ───────────────────────────────────────────────────
 
-// ─── Interactive Sparkline ────────────────────────────────────────────────────
-
-interface SparklineProps {
-  points: number[];
-  color: string;
-  uid: string;
-}
-
-function Sparkline({ points, color, uid }: SparklineProps) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [hover, setHover] = useState<{ x: number; y: number; value: number; index: number } | null>(null);
-
-  const W = 560;
-  const H = 130;
-  const PAD_X = 2;
-  const PAD_Y = 10;
-
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const range = max - min || 1;
-
-  const toX = (i: number) => PAD_X + (i / (points.length - 1)) * (W - PAD_X * 2);
-  const toY = (v: number) => H - PAD_Y - ((v - min) / range) * (H - PAD_Y * 2);
-
-  const pts = points.map((p, i) => ({ x: toX(i), y: toY(p), v: p }));
-
-  // Smooth cubic bezier
-  const linePath = pts.reduce((acc, pt, i) => {
-    if (i === 0) return `M${pt.x.toFixed(2)},${pt.y.toFixed(2)}`;
-    const prev = pts[i - 1];
-    const cpX = ((prev.x + pt.x) / 2).toFixed(2);
-    return `${acc} C${cpX},${prev.y.toFixed(2)} ${cpX},${pt.y.toFixed(2)} ${pt.x.toFixed(2)},${pt.y.toFixed(2)}`;
-  }, "");
-
-  const last = pts[pts.length - 1];
-  const areaPath = `${linePath} L${last.x},${H} L${pts[0].x},${H} Z`;
-
-  const gradId   = `sg-${uid}`;
-  const clipId   = `sc-${uid}`;
-
-  // Map mouse X → nearest data point
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const relX = ((e.clientX - rect.left) / rect.width) * W;
-    // Find nearest point
-    let best = 0;
-    let bestDist = Infinity;
-    pts.forEach((p, i) => {
-      const d = Math.abs(p.x - relX);
-      if (d < bestDist) { bestDist = d; best = i; }
-    });
-    setHover({ x: pts[best].x, y: pts[best].y, value: pts[best].v, index: best });
-  };
-
-  const handleMouseLeave = () => setHover(null);
-
-  // Timestamp labels (fake, evenly spaced)
-  const timeLabels = ["1d ago", "18h", "12h", "6h", "Now"];
-
+function ChartTooltip({ active, payload, strokeColor }: any) {
+  if (!active || !payload?.length) return null;
   return (
-    <div className="relative w-full h-full select-none">
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full h-full"
-        preserveAspectRatio="none"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        style={{ cursor: "crosshair" }}
-      >
-        <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor={color} stopOpacity="0.2" />
-            <stop offset="100%" stopColor={color} stopOpacity="0"   />
-          </linearGradient>
-          <clipPath id={clipId}>
-            <rect x="0" y="0" width={W} height={H} />
-          </clipPath>
-        </defs>
-
-        {/* Grid lines */}
-        {[0.2, 0.4, 0.6, 0.8].map((f) => (
-          <line
-            key={f}
-            x1={0} y1={H * f} x2={W} y2={H * f}
-            stroke="white" strokeOpacity="0.04"
-            strokeWidth="1" strokeDasharray="3 5"
-          />
-        ))}
-
-        {/* Area */}
-        <path d={areaPath} fill={`url(#${gradId})`} clipPath={`url(#${clipId})`} />
-
-        {/* Line */}
-        <path
-          d={linePath}
-          stroke={color}
-          strokeWidth="2"
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          clipPath={`url(#${clipId})`}
-        />
-
-        {/* Hover elements */}
-        {hover && (
-          <>
-            {/* Vertical rule */}
-            <line
-              x1={hover.x} y1={0}
-              x2={hover.x} y2={H}
-              stroke={color}
-              strokeOpacity="0.3"
-              strokeWidth="1"
-              strokeDasharray="3 3"
-            />
-            {/* Dot glow */}
-            <circle cx={hover.x} cy={hover.y} r="8"  fill={color} fillOpacity="0.15" />
-            <circle cx={hover.x} cy={hover.y} r="4"  fill={color} />
-            <circle cx={hover.x} cy={hover.y} r="2"  fill="white" />
-          </>
-        )}
-
-        {/* End dot (when not hovering) */}
-        {!hover && (
-          <>
-            <circle cx={last.x} cy={last.y} r="6" fill={color} fillOpacity="0.15" />
-            <circle cx={last.x} cy={last.y} r="3.5" fill={color} />
-          </>
-        )}
-      </svg>
-
-      {/* Time axis labels */}
-      <div className="absolute bottom-0 left-0 right-0 flex justify-between px-1 pointer-events-none">
-        {timeLabels.map((t) => (
-          <span key={t} className="text-[10px] text-gray-700">{t}</span>
-        ))}
-      </div>
-
-      {/* Hover tooltip */}
-      {hover && (() => {
-        const pct = (hover.x / W) * 100;
-        const clampedPct = Math.min(Math.max(pct, 8), 92);
-        return (
-          <div
-            className="absolute -top-1 pointer-events-none z-20"
-            style={{ left: `${clampedPct}%`, transform: "translateX(-50%)" }}
-          >
-            <div
-              className="px-2.5 py-1.5 rounded-lg border text-[12px] font-semibold whitespace-nowrap"
-              style={{
-                background: "rgba(16,17,20,0.95)",
-                borderColor: color + "55",
-                color,
-                boxShadow: `0 0 12px ${color}22`,
-              }}
-            >
-              {hover.value.toFixed(1)}%
-            </div>
-          </div>
-        );
-      })()}
-    </div>
-  );
-}
-
-// ─── Option row with animated bar ────────────────────────────────────────────
-
-function OptionRow({ opt, isTop }: { opt: MarketOption; isTop?: boolean }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className={`text-[13px] truncate font-medium ${isTop ? "text-gray-100" : "text-gray-500"}`}>
-            {opt.label}
-          </span>
-          <span className={`text-[13px] font-bold tabular-nums shrink-0 ml-3 ${isTop ? "text-white" : "text-gray-500"}`}>
-            {opt.percent}%
-          </span>
-        </div>
-        <div className="h-[3px] rounded-full bg-white/5 overflow-hidden">
-          <div
-            className={`h-full rounded-full ${BAR_CLASS[opt.color]}`}
-            style={{ width: `${opt.percent}%`, opacity: isTop ? 1 : 0.35, transition: "width 600ms cubic-bezier(0.22,1,0.36,1)" }}
-          />
-        </div>
-      </div>
+    <div
+      className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold border"
+      style={{
+        background: "rgba(10,11,14,0.97)",
+        borderColor: strokeColor + "44",
+        color: strokeColor,
+        boxShadow: `0 0 16px ${strokeColor}22`,
+        fontFamily: "'DM Mono', monospace",
+      }}
+    >
+      {payload[0].value.toFixed(1)}%
     </div>
   );
 }
@@ -338,114 +166,198 @@ function OptionRow({ opt, isTop }: { opt: MarketOption; isTop?: boolean }) {
 // ─── Market Card ──────────────────────────────────────────────────────────────
 
 function MarketCard({ market }: { market: FeaturedMarket }) {
-  const uid = useId().replace(/:/g, "");
-  const primary   = market.options[0];
-  const lineColor = LINE_COLOR[primary.color];
-  const topTwo    = market.options.slice(0, 2);
-  const rest      = market.options.slice(2);
-  const isLive    = market.endsAt.toLowerCase().startsWith("live");
+  const gradId = `grad-${useId().replace(/:/g, "")}`;
+  const primary  = market.options[0];
+  const c        = COLOR_MAP[primary.color] ?? COLOR_MAP.blue;
+  const isLive   = market.endsAt.toLowerCase().startsWith("live");
+  const catDot   = CATEGORY_DOT[market.category] ?? "#6b7280";
+
+  // Build recharts data
+  const chartData = market.chartPoints.map((v, i) => ({ t: i, v }));
+  const lastVal   = market.chartPoints[market.chartPoints.length - 1];
+  const firstVal  = market.chartPoints[0];
+  const delta     = lastVal - firstVal;
+  const deltaColor = delta >= 0 ? "#34d399" : "#f87171";
 
   return (
-    <article className="flex flex-col h-full bg-[#111214] border border-white/[0.07] rounded-2xl overflow-hidden">
-      {/* Header */}
-      <div className="px-5 pt-5 pb-4 shrink-0">
-        <div className="flex items-center gap-2 mb-3">
-          {market.flagEmoji && <span className="text-lg leading-none">{market.flagEmoji}</span>}
-          <span className="text-[11px] font-semibold tracking-wide uppercase text-gray-600">
-            {market.category}
-          </span>
-          {market.subcategory && (
-            <>
-              <span className="text-gray-700 text-[10px]">·</span>
-              <span className="text-[11px] text-gray-700">{market.subcategory}</span>
-            </>
-          )}
-          {isLive && (
-            <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+    <article
+      className="flex flex-col h-full overflow-hidden rounded-2xl border border-white/[0.06] relative"
+      style={{ background: "linear-gradient(160deg, #0f1117 0%, #0c0d10 100%)" }}
+    >
+      {/* Top glow line */}
+      <div className="absolute top-0 left-0 right-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${c.stroke}66, transparent)` }} />
+
+      {/* ── Header ── */}
+      <div className="px-5 pt-5 pb-3 shrink-0">
+        {/* Category row */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            {market.flagEmoji && (
+              <span className="text-base leading-none">{market.flagEmoji}</span>
+            )}
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: catDot }} />
+              <span className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: catDot }}>
+                {market.category}
+              </span>
+            </span>
+            {market.subcategory && (
+              <span className="text-[10px] text-gray-700">/ {market.subcategory}</span>
+            )}
+          </div>
+
+          {isLive ? (
+            <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide px-2 py-0.5 rounded-full" style={{ background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.2)" }}>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               LIVE
+            </span>
+          ) : (
+            <span className="text-[10px] text-gray-600 flex items-center gap-1">
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.4"/>
+                <path d="M5 1v3M11 1v3M2 7h12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              </svg>
+              {market.endsAt}
             </span>
           )}
         </div>
 
-        <h3 className="text-[16px] font-semibold text-white leading-snug line-clamp-2 mb-4">
+        {/* Title */}
+        <h3 className="text-[17px] font-bold text-white leading-snug line-clamp-2 mb-4" style={{ letterSpacing: "-0.01em" }}>
           {market.title}
         </h3>
 
-        <div className="space-y-2.5">
-          {topTwo.map((opt, i) => (
-            <OptionRow key={opt.label} opt={opt} isTop={i === 0} />
-          ))}
+        {/* Options */}
+        <div className="space-y-2">
+          {market.options.slice(0, 2).map((opt, i) => {
+            const oc = COLOR_MAP[opt.color] ?? COLOR_MAP.blue;
+            return (
+              <div key={opt.label} className="flex items-center gap-3">
+                <span
+                  className="text-[11px] font-semibold shrink-0 w-7 tabular-nums text-right"
+                  style={{ color: i === 0 ? oc.text : "#4b5563" }}
+                >
+                  {opt.percent}%
+                </span>
+                <div className="flex-1 relative h-[3px] rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
+                    style={{ width: `${opt.percent}%`, background: i === 0 ? oc.stroke : "#1f2937" }}
+                  />
+                </div>
+                <span className={`text-[12px] truncate flex-1 min-w-0 ${i === 0 ? "text-gray-200 font-medium" : "text-gray-600"}`}>
+                  {opt.label}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
-        {rest.length > 0 && (
-          <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-            {rest.map((opt) => (
-              <span key={opt.label} className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${BADGE_CLASS[opt.color]}`}>
-                {opt.label} &lt;{opt.percent + 1}%
-              </span>
-            ))}
+        {/* Rest as pills */}
+        {market.options.length > 2 && (
+          <div className="flex flex-wrap gap-1.5 mt-2.5">
+            {market.options.slice(2).map((opt) => {
+              const oc = COLOR_MAP[opt.color] ?? COLOR_MAP.purple;
+              return (
+                <span
+                  key={opt.label}
+                  className="text-[10px] font-medium px-2 py-0.5 rounded-full border"
+                  style={{ background: oc.pill, color: oc.text, borderColor: oc.stroke + "33" }}
+                >
+                  {opt.label} &lt;{opt.percent + 1}%
+                </span>
+              );
+            })}
           </div>
         )}
 
         {/* Recent trades */}
         {market.recentTrades && (
           <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+            <span className="text-[9px] text-gray-700 font-semibold tracking-wider uppercase mr-0.5">Recent</span>
             {market.recentTrades.map((t, i) => (
               <span
                 key={i}
-                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                  t.side === "yes"
-                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                    : "bg-red-500/10 text-red-400 border-red-500/20"
-                }`}
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                style={{
+                  background: t.side === "yes" ? "rgba(52,211,153,0.08)" : "rgba(248,113,113,0.08)",
+                  color: t.side === "yes" ? "#34d399" : "#f87171",
+                  border: `1px solid ${t.side === "yes" ? "rgba(52,211,153,0.2)" : "rgba(248,113,113,0.2)"}`,
+                }}
               >
-                +{t.amount}
+                {t.side === "yes" ? "▲" : "▼"} {t.amount}
               </span>
             ))}
           </div>
         )}
       </div>
 
-      {/* Chart */}
-      <div className="flex-1 relative px-1 pb-5 min-h-[130px]">
-        <Sparkline points={market.chartPoints} color={lineColor} uid={uid} />
+      {/* ── Chart ── */}
+      <div className="flex-1 min-h-0 relative px-0 pb-0" style={{ minHeight: 120 }}>
+        {/* Delta badge */}
+        <div className="absolute top-2 right-4 z-10 flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold" style={{ background: "rgba(0,0,0,0.5)", color: deltaColor }}>
+          {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}pp
+        </div>
+
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor={c.stroke} stopOpacity={0.25} />
+                <stop offset="100%" stopColor={c.stroke} stopOpacity={0}    />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="t" hide />
+            <YAxis
+              domain={["dataMin - 5", "dataMax + 5"]}
+              hide
+            />
+            <Tooltip
+              content={(props) => <ChartTooltip {...props} strokeColor={c.stroke} />}
+              cursor={{ stroke: c.stroke, strokeWidth: 1, strokeOpacity: 0.3, strokeDasharray: "3 3" }}
+            />
+            <Area
+              type="monotoneX"
+              dataKey="v"
+              stroke={c.stroke}
+              strokeWidth={2}
+              fill={`url(#${gradId})`}
+              dot={false}
+              activeDot={{ r: 4, fill: c.stroke, stroke: "#0c0d10", strokeWidth: 2 }}
+              isAnimationActive={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+
+        {/* Time axis */}
+        <div className="absolute bottom-1.5 left-4 right-4 flex justify-between pointer-events-none">
+          {["1d ago", "18h", "12h", "6h", "Now"].map((t) => (
+            <span key={t} className="text-[9px] text-gray-700">{t}</span>
+          ))}
+        </div>
       </div>
 
-      {/* Footer */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-t border-white/[0.05] bg-white/[0.015] shrink-0">
-        <div className="flex items-center gap-1.5">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-            <path d="M2 12h12M4 9h8M6 6h4" stroke="#4b5563" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-          <span className="text-[12px] text-gray-500 font-medium">{market.volume} Vol</span>
-        </div>
+      {/* ── Footer ── */}
+      <div
+        className="flex items-center justify-between px-5 py-3 border-t shrink-0"
+        style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.015)" }}
+      >
         <div className="flex items-center gap-1.5">
           <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-            <rect x="2" y="3" width="12" height="11" rx="2" stroke="#4b5563" strokeWidth="1.4" />
-            <path d="M5 1v3M11 1v3M2 7h12" stroke="#4b5563" strokeWidth="1.4" strokeLinecap="round" />
+            <path d="M2 12h12M4 9h8M6 6h4" stroke="#4b5563" strokeWidth="1.6" strokeLinecap="round"/>
           </svg>
-          <span className="text-[12px] text-gray-500">{market.endsAt}</span>
+          <span className="text-[11px] font-semibold text-gray-500">{market.volume}</span>
+          <span className="text-[9px] text-gray-700 font-medium tracking-wider uppercase">Vol</span>
         </div>
+
+        <button
+          className="text-[11px] font-bold px-3 py-1 rounded-lg transition-all active:scale-95"
+          style={{ background: c.fill, color: c.text, border: `1px solid ${c.stroke}33` }}
+        >
+          Trade →
+        </button>
       </div>
     </article>
-  );
-}
-
-// ─── Icons
-
-function ChevronLeft() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
-      <path d="M13 4l-6 6 6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function ChevronRight() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
-      <path d="M7 4l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
 
@@ -453,7 +365,6 @@ function ChevronRight() {
 
 interface FeaturedMarketsProps {
   markets?: FeaturedMarket[];
-  /** When provided, parent controls the index (controls live elsewhere) */
   externalIndex?: number;
   setExternalIndex?: (i: number) => void;
   paused?: boolean;
@@ -469,28 +380,26 @@ export default function FeaturedMarkets({
 }: FeaturedMarketsProps) {
   const controlled = externalIndex !== undefined;
 
-  const [internalIndex, setInternalIndex] = useState(0);
+  const [internalIndex,  setInternalIndex]  = useState(0);
   const [internalPaused, setInternalPaused] = useState(false);
 
-  const index    = controlled ? externalIndex!  : internalIndex;
-  const paused   = controlled ? externalPaused! : internalPaused;
-  const setIndex = controlled ? setExternalIndex! : setInternalIndex;
-  const setPaused= controlled ? setExternalPaused! : setInternalPaused;
+  const index    = controlled ? externalIndex!      : internalIndex;
+  const paused   = controlled ? externalPaused!     : internalPaused;
+  const setIndex = controlled ? setExternalIndex!   : setInternalIndex;
+  const setPaused= controlled ? setExternalPaused!  : setInternalPaused;
 
   const dragStart = useRef<number | null>(null);
   const total     = markets.length;
 
-  const prev = useCallback(() => setIndex(Math.max(0, index - 1)),   [index, setIndex]);
-  const next = useCallback(() => setIndex((index + 1) % total),      [index, total, setIndex]);
+  const prev = useCallback(() => setIndex(Math.max(0, index - 1)),  [index, setIndex]);
+  const next = useCallback(() => setIndex((index + 1) % total),     [index, total, setIndex]);
 
-  // Auto-play
   useEffect(() => {
     if (paused) return;
     const id = setInterval(next, AUTO_PLAY_INTERVAL);
     return () => clearInterval(id);
   }, [paused, next]);
 
-  // Swipe
   const onPointerDown = (e: React.PointerEvent) => { dragStart.current = e.clientX; };
   const onPointerUp   = (e: React.PointerEvent) => {
     if (dragStart.current === null) return;
@@ -501,7 +410,6 @@ export default function FeaturedMarkets({
 
   return (
     <div className="flex flex-col h-full" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      {/* Carousel — fills parent height, no internal controls */}
       <div
         className="flex-1 overflow-hidden rounded-2xl cursor-grab active:cursor-grabbing"
         onPointerDown={onPointerDown}
@@ -511,7 +419,10 @@ export default function FeaturedMarkets({
       >
         <div
           className="flex h-full"
-          style={{ transform: `translateX(-${index * 100}%)`, transition: "transform 420ms cubic-bezier(0.22,1,0.36,1)" }}
+          style={{
+            transform: `translateX(-${index * 100}%)`,
+            transition: "transform 450ms cubic-bezier(0.22,1,0.36,1)",
+          }}
         >
           {markets.map((m) => (
             <div key={m.id} className="min-w-full h-full">

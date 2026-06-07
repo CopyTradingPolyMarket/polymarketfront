@@ -8,11 +8,11 @@ export default function Home() {
   return (
     <main>
       <HeroSection />
-      <div className="w-[60%] mx-auto my-10 flex justify-between gap-6">
-        <div className="w-[75%]">
+      <div className="md:w-[60%] mx-auto my-10 flex justify-between gap-6">
+        <div className="w-[75%] mx-auto md:mx-0">
           <FeaturedSmallMarkets />
         </div>
-        <div className="w-[25%]">
+        <div className="w-[25%] hidden md:block">
           <HomeSidebar />
         </div>
       </div>

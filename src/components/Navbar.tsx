@@ -398,7 +398,7 @@ export default function Navbar() {
         <header className="w-full bg-[#111113] sticky top-0 z-50 font-['DM_Sans',_sans-serif]">
 
             {/* TOP BAR */}
-            <div className="flex items-center justify-between px-4 py-8 h-12 w-[60%] mx-auto">
+            <div className="flex items-center justify-between px-4 py-8 h-12 w-full md:w-[60%] mx-auto">
                 
                 {/* Logo */}
                 <a href="/" className="flex items-center gap-2 shrink-0 hover:opacity-90 transition-opacity">
@@ -415,7 +415,7 @@ export default function Navbar() {
                   </div>
                   <button 
                     onClick={() => setHowItWorksOpen(true)}
-                    className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] text-blue-400 hover:text-blue-200 hover:bg-blue-500/10 active:scale-[0.98] transition-all duration-150 cursor-pointer">
+                    className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] text-[#34d399] hover:text-[#3ee6aa] active:scale-[0.98] transition-all duration-150 cursor-pointer">
                         <InfoIcon className="w-4 h-4" />
                         <span className="font-medium">How it works</span>
                   </button>
@@ -424,11 +424,11 @@ export default function Navbar() {
                 {/* Right actions */}
                 <div className="flex items-center gap-2 shrink-0">
 
-                <button className="hidden sm:block px-3 py-1.5 text-[13px] text-gray-300 hover:text-white transition-colors rounded-lg hover:bg-[#1a1b1e]">
+                <button className="px-3 py-1.5 text-[13px] text-gray-300 hover:text-white transition-colors rounded-lg hover:bg-[#1a1b1e] cursor-pointer">
                     Log In
                 </button>
 
-                <button className="px-3 py-1.5 text-[13px] font-medium text-white bg-blue-600 hover:bg-blue-500 transition-colors rounded-lg">
+                <button className="px-3 py-1.5 text-[13px] font-medium text-white bg-[#34d399] hover:bg-[#3ee6aa] transition-colors rounded-lg cursor-pointer">
                     Sign Up
                 </button>
 
@@ -440,7 +440,7 @@ export default function Navbar() {
             </div>
 
             {/* CATEGORY TABS - SEPARATE ROW */}
-            <div className="w-[60%] mx-auto">
+            <div className="w-full md:w-[60%] mx-auto">
                 <CategoryTabs />
             </div>
 

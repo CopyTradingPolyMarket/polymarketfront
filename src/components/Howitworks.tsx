@@ -152,7 +152,7 @@ const SLIDES: Slide[] = [
     description:
       "Buy 'Yes' or 'No' shares depending on your prediction. Odds shift in real time as other traders get in on the action.",
     illustration: <MarketIllustration />,
-    accent: "bg-blue-600",
+    accent: "bg-[#34d399]",
   },
   {
     step: 2,
@@ -338,7 +338,7 @@ export default function HowItWorksModal({ isOpen, onClose }: HowItWorksModalProp
             {current > 0 && (
               <button
                 onClick={() => go(-1)}
-                className="px-4 py-2 text-[13px] text-gray-400 hover:text-white rounded-lg hover:bg-[#1a1b1e] transition-colors"
+                className="px-4 py-2 text-[13px] text-gray-400 hover:text-white rounded-lg hover:bg-[#1a1b1e] transition-colors cursor-pointer"
               >
                 Back
               </button>
@@ -346,14 +346,14 @@ export default function HowItWorksModal({ isOpen, onClose }: HowItWorksModalProp
             {isLast ? (
               <button
                 onClick={onClose}
-                className="px-5 py-2 text-[13px] font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
+                className="px-5 py-2 text-[13px] font-semibold text-white bg-[#34d399] hover:bg-[#3ee6aa] rounded-lg transition-colors cursor-pointer"
               >
                 Get Started
               </button>
             ) : (
               <button
                 onClick={() => go(1)}
-                className="px-5 py-2 text-[13px] font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
+                className="px-5 py-2 text-[13px] font-semibold text-white bg-[#34d399] hover:bg-[#3ee6aa] rounded-lg transition-colors cursor-pointer"
               >
                 Next
               </button>

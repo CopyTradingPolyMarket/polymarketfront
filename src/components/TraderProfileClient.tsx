@@ -103,7 +103,10 @@ export default function TraderProfileClient({ profile, trades, earnings }: Props
 
       {/* ── Profile header ── */}
       <div className="max-w-5xl mx-auto px-6">
-        <div className="relative flex items-end justify-between" style={{ marginTop: -40 }}>
+        <div
+          className="relative flex flex-col items-start gap-4 md:flex-row md:items-end md:justify-between"
+          style={{ marginTop: -40 }}
+        >
 
           {/* Avatar */}
           <div className="flex items-end gap-4">
@@ -285,58 +288,89 @@ export default function TraderProfileClient({ profile, trades, earnings }: Props
               const statusBg   = trade.status === "open" ? "rgba(59,130,246,0.12)" : trade.status === "won" ? "rgba(16,185,129,0.12)" : "rgba(248,113,113,0.12)";
 
               return (
-                <div
-                  key={trade.id}
-                  className="flex items-center gap-4 px-4 py-3 rounded-xl border border-white/[0.05] hover:border-white/10 transition-all cursor-pointer group"
-                  style={{ background: "#0e0f11" }}
-                >
-                  {/* Side badge */}
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center text-[11px] font-black shrink-0"
-                    style={{
-                      background: trade.side === "YES" ? "rgba(16,185,129,0.15)" : "rgba(248,113,113,0.15)",
-                      color: trade.side === "YES" ? "#34d399" : "#f87171",
-                    }}
-                  >
-                    {trade.side}
-                  </div>
+               <div
+  key={trade.id}
+  className="
+    rounded-xl
+    border border-white/[0.05]
+    hover:border-white/10
+    transition-all
+    cursor-pointer
+    group
+    p-3
+  "
+  style={{ background: "#0e0f11" }}
+>
+  {/* TOP ROW */}
+  <div className="flex items-start gap-3">
+    <div
+      className="w-10 h-10 rounded-lg flex items-center justify-center text-[11px] font-black shrink-0"
+      style={{
+        background:
+          trade.side === "YES"
+            ? "rgba(16,185,129,0.15)"
+            : "rgba(248,113,113,0.15)",
+        color: trade.side === "YES" ? "#34d399" : "#f87171",
+      }}
+    >
+      {trade.side}
+    </div>
 
-                  {/* Market title */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-semibold text-gray-200 group-hover:text-white transition-colors line-clamp-1">
-                      {trade.market}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: cat.bg, color: cat.text }}>
-                        {trade.category}
-                      </span>
-                      <span className="text-[10px] text-gray-600">
-                        Entry {trade.entry}¢ {trade.exit ? `→ ${trade.exit}¢` : ""}
-                      </span>
-                    </div>
-                  </div>
+    <div className="flex-1 min-w-0">
+      <p className="text-[13px] font-semibold text-gray-200 group-hover:text-white transition-colors line-clamp-2">
+        {trade.market}
+      </p>
 
-                  {/* Date */}
-                  <span className="text-[10px] text-gray-600 shrink-0">{trade.date}</span>
+      <div className="flex items-center gap-2 mt-1 flex-wrap">
+        <span
+          className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+          style={{ background: cat.bg, color: cat.text }}
+        >
+          {trade.category}
+        </span>
 
-                  {/* Status */}
-                  <span
-                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 capitalize"
-                    style={{ background: statusBg, color: statusColor }}
-                  >
-                    {trade.status}
-                  </span>
+        <span className="text-[10px] text-gray-500">
+          Entry {trade.entry}¢
+          {trade.exit ? ` → ${trade.exit}¢` : ""}
+        </span>
+      </div>
+    </div>
 
-                  {/* PnL */}
-                  <div className="text-right shrink-0 w-20">
-                    <div className="text-[13px] font-bold tabular-nums" style={{ color: isUp ? "#34d399" : "#f87171" }}>
-                      {trade.pnl}
-                    </div>
-                    <div className="text-[10px] tabular-nums" style={{ color: isUp ? "#34d399" : "#f87171" }}>
-                      {isUp ? "+" : ""}{trade.pnlPercent}%
-                    </div>
-                  </div>
-                </div>
+    <div className="text-right shrink-0">
+      <div
+        className="text-[14px] font-bold tabular-nums"
+        style={{ color: isUp ? "#34d399" : "#f87171" }}
+      >
+        {trade.pnl}
+      </div>
+
+      <div
+        className="text-[10px] tabular-nums"
+        style={{ color: isUp ? "#34d399" : "#f87171" }}
+      >
+        {isUp ? "+" : ""}
+        {trade.pnlPercent}%
+      </div>
+    </div>
+  </div>
+
+  {/* BOTTOM ROW */}
+  <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/[0.05]">
+    <span className="text-[10px] text-gray-500">
+      {trade.date}
+    </span>
+
+    <span
+      className="text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize"
+      style={{
+        background: statusBg,
+        color: statusColor,
+      }}
+    >
+      {trade.status}
+    </span>
+  </div>
+</div>
               );
             })}
           </div>

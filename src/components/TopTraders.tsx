@@ -184,9 +184,12 @@ export default function TopTraders() {
             <span style={{ fontSize: 13 }}>🏆</span>
             <span className="text-[12px] font-semibold text-gray-200 tracking-wide">Top Traders</span>
           </div>
-          <button className="text-[11px] text-gray-600 hover:text-gray-400 transition-colors">
+          <Link
+            href={'/all-traders'}
+          ><button className="text-[11px] text-gray-600 hover:text-gray-400 transition-colors">
             All →
           </button>
+          </Link>
         </div>
 
         {/* Search — always visible */}

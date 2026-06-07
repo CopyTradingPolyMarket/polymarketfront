@@ -113,9 +113,13 @@ export default function SuggestedTradersSidebar({ traders, currentSlug }: Props)
         </div>
 
         {/* View all link */}
-        <button className="w-full mt-3 py-2 text-[11px] font-medium text-gray-600 border border-white/[0.05] rounded-xl hover:text-white hover:border-white/10 transition-all">
+        <Link
+          href={'/all-traders'}
+        >
+        <button className="w-full mt-3 py-2 text-[11px] font-medium text-gray-600 border border-white/[0.05] rounded-xl hover:text-white hover:border-white/10 transition-all cursor-pointer">
           View all traders →
         </button>
+        </Link>
       </div>
     </aside>
   );

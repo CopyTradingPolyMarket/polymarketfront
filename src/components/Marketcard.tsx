@@ -52,24 +52,27 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
               {opt.label}
             </span>
 
-            <span className="text-[13px] font-semibold text-white w-[50px] text-right">
-              {opt.probability}%
-            </span>
+            <div className="flex items-center">
 
-            <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={() => onSelect?.(market.id, opt.label, "yes")}
-                className="px-2 py-1 text-[11px] rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition"
-              >
-                Yes
-              </button>
+              <span className="text-[13px] font-semibold text-white w-[50px] text-right mr-4">
+                {opt.probability}%
+              </span>
 
-              <button
-                onClick={() => onSelect?.(market.id, opt.label, "no")}
-                className="px-2 py-1 text-[11px] rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
-              >
-                No
-              </button>
+              <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => onSelect?.(market.id, opt.label, "yes")}
+                  className="px-2 py-1 text-[11px] rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition"
+                >
+                  Yes
+                </button>
+
+                <button
+                  onClick={() => onSelect?.(market.id, opt.label, "no")}
+                  className="px-2 py-1 text-[11px] rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
+                >
+                  No
+                </button>
+              </div>
             </div>
           </div>
         ))}
