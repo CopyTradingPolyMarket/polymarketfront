@@ -2,6 +2,8 @@ import HeroSection from "@/src/components/Herosection";
 import FeaturedSmallMarkets from "@/src/components/Featuredsmallmarkets";
 import HomeSidebar from "@/src/components/HomeSidebar";
 
+// Vercel deploy
+
 export default function Home() {
   return (
     <main>
