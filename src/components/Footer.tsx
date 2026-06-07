@@ -55,7 +55,7 @@ export default function Footer() {
         
         {/* Brand */}
         <div>
-          <h2 className="text-white text-lg font-semibold">YourPlatform</h2>
+          <h2 className="text-white text-lg font-semibold">PolyMarket</h2>
           <p className="text-sm text-gray-400 mt-3">
             Predict markets, trade ideas, and stay ahead of trends.
           </p>
@@ -123,7 +123,7 @@ export default function Footer() {
 
       {/* Bottom bar */}
       <div className="border-t border-white/10 text-center text-xs text-gray-500 py-4">
-        © {new Date().getFullYear()} YourPlatform. All rights reserved.
+        © {new Date().getFullYear()} PolyMarket. All rights reserved.
       </div>
     </footer>
   );

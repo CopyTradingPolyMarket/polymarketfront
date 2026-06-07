@@ -114,7 +114,7 @@ export default function MarketPage() {
 
       {/* NAV */}
       <nav style={{
-        position: "sticky", top: 0, zIndex: 50,
+        position: "sticky", top: 0, zIndex: 10,
         borderBottom: "1px solid rgba(255,255,255,0.06)",
         background: "rgba(9,9,11,0.85)",
         backdropFilter: "blur(20px)",

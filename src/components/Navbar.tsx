@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Howitworks from "./Howitworks"
+import { MOCK_MARKETS } from "@/lib/markets";
+import { slugify } from "@/lib/slugify";
+import Image from "next/image";
+import Link from "next/link";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -146,31 +150,141 @@ function ChevronDownIcon() {
 
 function SearchBar() {
   const [focused, setFocused] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const results = useMemo(() => {
+    if (!query.trim()) {
+      return MOCK_MARKETS.slice(0, 5);
+    }
+
+    return MOCK_MARKETS.filter((market) =>
+      market.title.toLowerCase().includes(query.toLowerCase())
+    ).slice(0, 8);
+  }, [query]);
 
   return (
     <div
       className={`
-        flex items-center gap-2 px-3 h-9 rounded-lg
-        bg-[#1a1b1e] border transition-colors duration-150
-        ${focused ? "border-[#374151]" : "border-[#2a2b2f]"}
-        w-[260px] xl:w-[320px]
+        relative z-50 transition-all duration-300 ease-out
+        ${focused ? "w-[520px]" : "w-[320px]"}
       `}
     >
-      <SearchIcon />
-      <input
-        type="text"
-        placeholder="Search polymarkets..."
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        className="
-          bg-transparent text-sm text-gray-300
-          placeholder:text-gray-600 outline-none w-full
-          font-['DM_Sans',_sans-serif]
-        "
-      />
-      <kbd className="text-[10px] text-gray-600 bg-[#242529] px-1.5 py-0.5 rounded border border-[#2e2f33] font-mono">
-        /
-      </kbd>
+      {/* INPUT */}
+      <div
+        className={`
+          flex items-center gap-3 h-11 px-4 rounded-2xl
+          transition-all duration-300
+
+          ${
+            focused
+              ? "bg-[#151619] border border-[#34d399] shadow-[0_0_0_1px_rgba(99,102,241,.25),0_20px_80px_rgba(0,0,0,.6)]"
+              : "bg-[#1a1b1e] border border-[#2a2b2f]"
+          }
+        `}
+      >
+        <SearchIcon />
+
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search markets..."
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          className="
+            bg-transparent text-sm text-gray-200
+            placeholder:text-gray-600 outline-none w-full
+            font-['DM_Sans',_sans-serif]
+          "
+        />
+
+        <kbd className="text-[10px] text-gray-600 bg-[#242529] px-2 py-0.5 rounded border border-[#2e2f33] font-mono">
+          /
+        </kbd>
+      </div>
+
+      {/* DROPDOWN */}
+      {focused && (
+        <div
+          className="
+            absolute top-full mt-3 left-0 w-full
+            z-[9999]
+            rounded-2xl
+            bg-[#121316]
+            backdrop-blur-xl
+            overflow-hidden
+            shadow-[0_30px_100px_rgba(0,0,0,.65)]
+          "
+        >
+          {/* HEADER */}
+          <div className="px-4 py-3 border-b border-white/[0.05] flex items-center justify-between">
+            <p className="text-[11px] text-gray-500 uppercase tracking-wider">
+              {query ? "Results" : "Trending Markets"}
+            </p>
+
+            <span className="text-[10px] text-gray-600">
+              {results.length} items
+            </span>
+          </div>
+
+          {/* LIST */}
+          <div className="max-h-[420px] overflow-y-auto custom-scrollbar pr-1">
+            {results.map((market) => (
+              <Link
+                key={market.id}
+                href={`/markets/${slugify(market.title)}`}
+                className="
+                  flex items-center gap-4 px-4 py-3
+                  hover:bg-white/[0.04]
+                  transition-all group
+                  border-b border-white/[0.03]
+                  last:border-0
+                "
+              >
+                {/* IMAGE */}
+                <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0">
+                  <Image
+                    src={market.image}
+                    alt={market.title}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+
+                {/* MAIN */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-medium text-white truncate group-hover:text-indigo-200 transition-colors">
+                    {market.title}
+                  </p>
+
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[11px] text-gray-500">
+                      {market.volume}
+                    </span>
+
+                    <span className="px-2 py-0.5 rounded-full bg-white/5 text-[10px] text-gray-400">
+                      Crypto
+                    </span>
+                  </div>
+                </div>
+
+                {/* RIGHT */}
+                <div className="text-right shrink-0">
+                  <div className="text-[14px] font-bold text-emerald-400">
+                    {market.options[0].probability}%
+                  </div>
+                  <div className="text-[10px] text-gray-500">YES</div>
+                </div>
+              </Link>
+            ))}
+
+            {results.length === 0 && (
+              <div className="py-10 text-center text-sm text-gray-500">
+                No markets found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -284,7 +398,7 @@ export default function Navbar() {
         <header className="w-full bg-[#111113] sticky top-0 z-50 font-['DM_Sans',_sans-serif]">
 
             {/* TOP BAR */}
-            <div className="flex items-center justify-between px-4 h-12 w-[60%] mx-auto">
+            <div className="flex items-center justify-between px-4 py-8 h-12 w-[60%] mx-auto">
                 
                 {/* Logo */}
                 <a href="/" className="flex items-center gap-2 shrink-0 hover:opacity-90 transition-opacity">
@@ -295,14 +409,16 @@ export default function Navbar() {
                 </a>
 
                 {/* Search */}
-                <div className="flex-1 max-w-md hidden sm:flex justify-between">
-                    <SearchBar />
-                    <button 
+                <div className="flex">
+                  <div className="flex-1 max-w-md hidden sm:flex justify-between my-5">
+                      <SearchBar />
+                  </div>
+                  <button 
                     onClick={() => setHowItWorksOpen(true)}
                     className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] text-blue-400 hover:text-blue-200 hover:bg-blue-500/10 active:scale-[0.98] transition-all duration-150 cursor-pointer">
                         <InfoIcon className="w-4 h-4" />
                         <span className="font-medium">How it works</span>
-                    </button>
+                  </button>
                 </div>
 
                 {/* Right actions */}
