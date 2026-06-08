@@ -12,7 +12,6 @@ const MORE_ITEMS = [
     links: [
       { label: "All Traders", href: "/all-traders", description: "Browse every active trader", icon: AllTradersIcon },
       { label: "Leaderboard", href: "/leaderboard", description: "Top performers this week", icon: LeaderboardIcon },
-      { label: "Liquidity Providers", href: "/liquidity-providers", description: "Market makers & LPs", icon: LiquidityIcon },
     ],
   },
   {
@@ -24,9 +23,8 @@ const MORE_ITEMS = [
     ],
   },
   {
-    heading: "Developers",
+    heading: "Connect",
     links: [
-      { label: "API Docs", href: "/docs/api", description: "REST & WebSocket reference", icon: ApiIcon },
       { label: "Newsletter", href: "/newsletter", description: "Weekly market digest", icon: NewsletterIcon },
     ],
   },

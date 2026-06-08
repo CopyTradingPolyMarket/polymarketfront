@@ -354,18 +354,6 @@ export default function SideDrawer({
                   Log in
                 </button>
               </div>
-
-              {/* trust signals */}
-              <div className="mt-3 flex items-center gap-3 relative">
-                <span className="text-[10px] text-gray-600 flex items-center gap-1">
-                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M6 1l1.3 2.6 2.9.4-2.1 2 .5 2.9L6 7.5 3.4 8.9l.5-2.9L2 4l2.9-.4L6 1z" fill="#34d399" /></svg>
-                  No KYC to start
-                </span>
-                <span className="text-[10px] text-gray-600 flex items-center gap-1">
-                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#34d399" strokeWidth="1.5"/><path d="M4 6l1.5 1.5L8 4.5" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  Free $10 on signup
-                </span>
-              </div>
             </div>
           )}
 
