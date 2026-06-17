@@ -2,9 +2,36 @@ import HeroSection from "@/src/components/Herosection";
 import FeaturedSmallMarkets from "@/src/components/Featuredsmallmarkets";
 import HomeSidebar from "@/src/components/HomeSidebar";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+
+interface ApiMarket {
+  title: string;
+  volume: number;
+  options: { label: string; probability: number }[];
+  tags: string[];
+}
+
+interface ApiEvent {
+  title: string;
+  tags: string[];
+  markets: { volume: number }[];
+}
+
 // Vercel deploy
 
-export default function Home() {
+export default async function Home() {
+  const [marketsRes, eventsRes] = await Promise.all([
+    fetch(`${API_BASE}/api/markets?sort=volume&limit=6&includeResolved=false`, { cache: "no-store" }),
+    fetch(`${API_BASE}/api/events?limit=3`, { cache: "no-store" }),
+  ]);
+
+  const markets: ApiMarket[] = marketsRes.ok
+    ? ((await marketsRes.json()) as { items: ApiMarket[] }).items
+    : [];
+  const events: ApiEvent[] = eventsRes.ok
+    ? ((await eventsRes.json()) as { items: ApiEvent[] }).items
+    : [];
+
   return (
     <main>
       <HeroSection />
@@ -13,7 +40,7 @@ export default function Home() {
           <FeaturedSmallMarkets />
         </div>
         <div className="w-[25%] hidden md:block">
-          <HomeSidebar />
+          <HomeSidebar markets={markets} events={events} />
         </div>
       </div>
     </main>

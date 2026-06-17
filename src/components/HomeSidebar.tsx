@@ -1,20 +1,28 @@
-"use client";
+import type { HotTopic, TopCategory } from "@/types/sidebar";
 
-import type {
-  BreakingItem,
-  HotTopic,
-  LiveEvent,
-  TrendingMarket,
-  TopCategory,
-} from "@/types/sidebar";
+// ─── API shapes ───────────────────────────────────────────────────────────────
 
-// ─── Data ───────────────────────────────────────────────────────────────────
+interface ApiMarket {
+  title: string;
+  volume: number;
+  options: { label: string; probability: number }[];
+  tags: string[];
+}
 
-const BREAKING: BreakingItem[] = [
-  { id: 1, title: "Will Tom Steyer advance from the 2026 CA Governor primary?", percent: 11, delta: -38 },
-  { id: 2, title: "Will the New York Knicks win the 2026 NBA Finals?",           percent: 79, delta:  27 },
-  { id: 3, title: "Will Karl-Anthony Towns win the 2026 NBA Finals MVP?",        percent: 33, delta:  26 },
-];
+interface ApiEvent {
+  title: string;
+  tags: string[];
+  markets: { volume: number }[];
+}
+
+// ─── Props ────────────────────────────────────────────────────────────────────
+
+interface Props {
+  markets: ApiMarket[];
+  events: ApiEvent[];
+}
+
+// ─── Hardcoded data (no aggregation endpoint available) ───────────────────────
 
 const HOT_TOPICS: HotTopic[] = [
   { rank: 1, label: "NBA",     volume: "$7M today",  category: "Sports"   },
@@ -22,19 +30,6 @@ const HOT_TOPICS: HotTopic[] = [
   { rank: 3, label: "Fed",     volume: "$13M today", category: "Finance"  },
   { rank: 4, label: "Spurs",   volume: "$8M today",  category: "Sports"   },
   { rank: 5, label: "Futures", volume: "$3M today",  category: "Crypto"   },
-];
-
-const LIVE_EVENTS: LiveEvent[] = [
-  { id: 1, title: "NBA Finals Game 7",           endsIn: "2h 14m", participants: 3241, volume: "$1.2M", badge: "🏀 LIVE" },
-  { id: 2, title: "Fed Rate Decision May 2026",  endsIn: "18h 5m", participants: 1870, volume: "$3.4M", badge: "💰 LIVE" },
-  { id: 3, title: "CA Governor Primary Results", endsIn: "6h 30m", participants:  924, volume: "$680K", badge: "🗳️ LIVE" },
-];
-
-const TRENDING_MARKETS: TrendingMarket[] = [
-  { id: 1, title: "Will BTC hit $120K by July?",         category: "Crypto",   change: +34, yes: 62 },
-  { id: 2, title: "SpaceX Starship orbital flight 2026?", category: "Tech",     change: +18, yes: 71 },
-  { id: 3, title: "Will Nvidia hit $200 by Q3?",          category: "Finance",  change: +12, yes: 48 },
-  { id: 4, title: "Taylor Swift Eras Tour 2027?",         category: "Culture",  change:  +9, yes: 55 },
 ];
 
 const TOP_CATEGORIES: TopCategory[] = [
@@ -55,7 +50,23 @@ const categoryColors: Record<string, { bg: string; text: string }> = {
   Culture: { bg: "rgba(236,72,153,0.12)",  text: "#f472b6"  },
 };
 
-// ─── Tiny SVGs ───────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatVolume(v: number): string {
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
+  return `$${v.toFixed(0)}`;
+}
+
+function eventBadge(tag?: string): string {
+  const map: Record<string, string> = {
+    Sports: "🏀 LIVE", Finance: "💰 LIVE", Crypto: "₿ LIVE",
+    Politics: "🗳️ LIVE", Tech: "🚀 LIVE", Culture: "🎭 LIVE",
+  };
+  return map[tag ?? ""] ?? "⚡ LIVE";
+}
+
+// ─── Tiny SVGs ────────────────────────────────────────────────────────────────
 
 function ArrowUp() {
   return (
@@ -102,9 +113,10 @@ function SeeAllBtn() {
   );
 }
 
-// ─── Card 1: Breaking News ────────────────────────────────────────────────────
+// ─── Card 1: Breaking (live from API) ────────────────────────────────────────
 
-export function BreakingCard() {
+export function BreakingCard({ markets }: { markets: ApiMarket[] }) {
+  const items = markets.slice(0, 3);
   return (
     <Card>
       <CardHeader action={<SeeAllBtn />}>
@@ -113,23 +125,16 @@ export function BreakingCard() {
       </CardHeader>
 
       <div className="divide-y divide-white/[0.04]">
-        {BREAKING.map((item) => {
-          const isUp = item.delta >= 0;
+        {items.map((item, i) => {
+          const yes = item.options[0]?.probability ?? 0;
           return (
-            <div key={item.id} className="flex items-start gap-2.5 py-3 group cursor-pointer">
-              <span className="text-[10px] text-gray-700 w-3 shrink-0 pt-0.5 font-medium tabular-nums">{item.id}</span>
+            <div key={i} className="flex items-start gap-2.5 py-3 group cursor-pointer">
+              <span className="text-[10px] text-gray-700 w-3 shrink-0 pt-0.5 font-medium tabular-nums">{i + 1}</span>
               <p className="flex-1 text-[12px] text-gray-400 leading-snug group-hover:text-gray-200 transition-colors line-clamp-2 min-w-0">
                 {item.title}
               </p>
               <div className="shrink-0 text-right ml-1">
-                <div className="text-[13px] font-bold text-white tabular-nums">{item.percent}%</div>
-                <div
-                  className="flex items-center justify-end gap-0.5 text-[10px] font-semibold mt-0.5"
-                  style={{ color: isUp ? "#34d399" : "#f87171" }}
-                >
-                  {isUp ? <ArrowUp /> : <ArrowDown />}
-                  {Math.abs(item.delta)}%
-                </div>
+                <div className="text-[13px] font-bold text-white tabular-nums">{yes}%</div>
               </div>
             </div>
           );
@@ -139,7 +144,7 @@ export function BreakingCard() {
   );
 }
 
-// ─── Card 2: Hot Topics ───────────────────────────────────────────────────────
+// ─── Card 2: Hot Topics (hardcoded — no aggregation endpoint) ─────────────────
 
 export function HotTopicsCard() {
   return (
@@ -173,9 +178,10 @@ export function HotTopicsCard() {
   );
 }
 
-// ─── Card 3: Live Events ──────────────────────────────────────────────────────
+// ─── Card 3: Live Events (live from API) ──────────────────────────────────────
 
-export function LiveEventsCard() {
+export function LiveEventsCard({ events }: { events: ApiEvent[] }) {
+  const items = events.slice(0, 3);
   return (
     <Card>
       <CardHeader action={<SeeAllBtn />}>
@@ -189,73 +195,25 @@ export function LiveEventsCard() {
       </CardHeader>
 
       <div className="space-y-2">
-        {LIVE_EVENTS.map((ev) => (
-          <div
-            key={ev.id}
-            className="rounded-xl px-3 py-2.5 group cursor-pointer hover:bg-white/[0.03] transition-colors border border-white/[0.04]"
-            style={{ background: "#0e0f11" }}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[12px] font-semibold text-gray-200 group-hover:text-white transition-colors leading-snug flex-1 min-w-0 line-clamp-1">
-                {ev.title}
-              </p>
-              <span className="text-[10px] font-medium shrink-0" style={{ color: "#f87171" }}>
-                {ev.badge}
-              </span>
-            </div>
-            <div className="flex items-center gap-3 mt-1.5">
-              <span className="text-[10px] text-gray-600">⏱ {ev.endsIn}</span>
-              <span className="text-[10px] text-gray-600">👥 {ev.participants.toLocaleString()}</span>
-              <span className="text-[10px] font-semibold ml-auto" style={{ color: "#34d399" }}>{ev.volume}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-// ─── Card 4: Trending Markets ─────────────────────────────────────────────────
-
-export function TrendingMarketsCard() {
-  return (
-    <Card>
-      <CardHeader action={<SeeAllBtn />}>
-        <span style={{ fontSize: 13 }}>📈</span>
-        <span className="text-[12px] font-semibold text-gray-200 tracking-wide">Trending</span>
-      </CardHeader>
-
-      <div className="divide-y divide-white/[0.04]">
-        {TRENDING_MARKETS.map((m) => {
-          const cat = categoryColors[m.category] ?? { bg: "rgba(255,255,255,0.06)", text: "#9ca3af" };
+        {items.map((ev, i) => {
+          const vol = formatVolume(ev.markets.reduce((s, m) => s + (m.volume ?? 0), 0));
+          const badge = eventBadge(ev.tags[0]);
           return (
-            <div key={m.id} className="py-2.5 group cursor-pointer">
-              <div className="flex items-start gap-2">
-                <p className="flex-1 text-[12px] text-gray-400 group-hover:text-gray-200 transition-colors leading-snug line-clamp-1 min-w-0">
-                  {m.title}
+            <div
+              key={i}
+              className="rounded-xl px-3 py-2.5 group cursor-pointer hover:bg-white/[0.03] transition-colors border border-white/[0.04]"
+              style={{ background: "#0e0f11" }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-[12px] font-semibold text-gray-200 group-hover:text-white transition-colors leading-snug flex-1 min-w-0 line-clamp-1">
+                  {ev.title}
                 </p>
-                <span
-                  className="text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0"
-                  style={{ background: cat.bg, color: cat.text }}
-                >
-                  {m.category}
+                <span className="text-[10px] font-medium shrink-0" style={{ color: "#f87171" }}>
+                  {badge}
                 </span>
               </div>
-              <div className="flex items-center gap-2 mt-1.5">
-                {/* Yes bar */}
-                <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${m.yes}%`, background: "linear-gradient(90deg,#6366f1,#818cf8)" }}
-                  />
-                </div>
-                <span className="text-[10px] font-semibold text-white tabular-nums">{m.yes}%</span>
-                <span
-                  className="text-[10px] font-semibold flex items-center gap-0.5 tabular-nums"
-                  style={{ color: "#34d399" }}
-                >
-                  <ArrowUp />+{m.change}%
-                </span>
+              <div className="flex items-center gap-3 mt-1.5">
+                <span className="text-[10px] font-semibold ml-auto" style={{ color: "#34d399" }}>{vol}</span>
               </div>
             </div>
           );
@@ -265,7 +223,53 @@ export function TrendingMarketsCard() {
   );
 }
 
-// ─── Card 5: Top Categories ───────────────────────────────────────────────────
+// ─── Card 4: Trending Markets (live from API) ─────────────────────────────────
+
+export function TrendingMarketsCard({ markets }: { markets: ApiMarket[] }) {
+  const items = markets.slice(0, 4);
+  return (
+    <Card>
+      <CardHeader action={<SeeAllBtn />}>
+        <span style={{ fontSize: 13 }}>📈</span>
+        <span className="text-[12px] font-semibold text-gray-200 tracking-wide">Trending</span>
+      </CardHeader>
+
+      <div className="divide-y divide-white/[0.04]">
+        {items.map((m, i) => {
+          const category = m.tags[0] ?? "General";
+          const yes = m.options[0]?.probability ?? 0;
+          const cat = categoryColors[category] ?? { bg: "rgba(255,255,255,0.06)", text: "#9ca3af" };
+          return (
+            <div key={i} className="py-2.5 group cursor-pointer">
+              <div className="flex items-start gap-2">
+                <p className="flex-1 text-[12px] text-gray-400 group-hover:text-gray-200 transition-colors leading-snug line-clamp-1 min-w-0">
+                  {m.title}
+                </p>
+                <span
+                  className="text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0"
+                  style={{ background: cat.bg, color: cat.text }}
+                >
+                  {category}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-1.5">
+                <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${yes}%`, background: "linear-gradient(90deg,#6366f1,#818cf8)" }}
+                  />
+                </div>
+                <span className="text-[10px] font-semibold text-white tabular-nums">{yes}%</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+// ─── Card 5: Top Categories (hardcoded — no categories endpoint) ───────────────
 
 export function TopCategoriesCard() {
   return (
@@ -283,10 +287,7 @@ export function TopCategoriesCard() {
             style={{ background: cat.color }}
           >
             <span className="text-lg leading-none mb-1.5">{cat.icon}</span>
-            <span
-              className="text-[12px] font-bold"
-              style={{ color: cat.accent }}
-            >
+            <span className="text-[12px] font-bold" style={{ color: cat.accent }}>
               {cat.label}
             </span>
             <span className="text-[10px] text-gray-600 mt-0.5">{cat.markets} markets</span>
@@ -300,13 +301,13 @@ export function TopCategoriesCard() {
 
 // ─── Default export: all cards stacked ───────────────────────────────────────
 
-export default function HomeSidebar() {
+export default function HomeSidebar({ markets, events }: Props) {
   return (
     <div className="flex flex-col gap-4" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      <BreakingCard />
+      <BreakingCard markets={markets} />
       <HotTopicsCard />
-      <LiveEventsCard />
-      <TrendingMarketsCard />
+      <LiveEventsCard events={events} />
+      <TrendingMarketsCard markets={markets} />
       <TopCategoriesCard />
     </div>
   );

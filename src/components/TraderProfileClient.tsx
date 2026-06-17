@@ -111,13 +111,19 @@ export default function TraderProfileClient({ profile, trades, earnings }: Props
           {/* Avatar */}
           <div className="flex items-end gap-4">
             <div
-              className="w-20 h-20 rounded-2xl border-4 flex items-center justify-center text-2xl font-black text-white shrink-0"
+              className="w-20 h-20 rounded-2xl border-4 shrink-0 overflow-hidden"
               style={{
-                background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+                background: profile.avatarGrad ?? "linear-gradient(135deg,#6366f1,#8b5cf6)",
                 borderColor: "#0c0c0e",
               }}
             >
-              {profile.avatar}
+              {profile.avatarUrl ? (
+                <img src={profile.avatarUrl} alt={profile.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-2xl font-black text-white">
+                  {profile.avatar}
+                </div>
+              )}
             </div>
 
             <div className="mb-1">
