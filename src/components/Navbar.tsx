@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Howitworks from "./Howitworks";
 import SideDrawer from "./SideDrawer";
 import CategoryTabs from "./CategoryTabs";
-import { MOCK_MARKETS } from "@/lib/markets";
-import { slugify } from "@/lib/slugify";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -52,18 +51,77 @@ function HamburgerIcon() {
   );
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
+interface SearchResult {
+  id: string;
+  title: string;
+  image: string | null;
+  volume: number;
+  options: { label: string; probability: number }[];
+  slug: string;
+}
+
+function formatVol(v: number): string {
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M vol`;
+  if (v >= 1_000)     return `$${(v / 1_000).toFixed(0)}K vol`;
+  return `$${v.toFixed(0)} vol`;
+}
+
 // ─── SearchBar ───────────────────────────────────────────────────────────────
 
 function SearchBar() {
-  const [focused, setFocused] = useState(false);
-  const [query, setQuery] = useState("");
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+  const [focused,  setFocused]  = useState(false);
+  const [query,    setQuery]    = useState("");
+  const [results,  setResults]  = useState<SearchResult[]>([]);
+  const [loading,  setLoading]  = useState(false);
+  // Suppress the ref type warning — we only ever read/write .current inside effects
+  const abortRef = useRef<AbortController | null>(null);
 
-  const results = useMemo(() => {
-    if (!query.trim()) return MOCK_MARKETS.slice(0, 5);
-    return MOCK_MARKETS.filter((m) =>
-      m.title.toLowerCase().includes(query.toLowerCase())
-    ).slice(0, 8);
+  useEffect(() => {
+    let cancelled = false;
+    const id = setTimeout(() => {
+      if (cancelled) return;
+      // Cancel any in-flight request from a previous keystroke
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
+      const signal = abortRef.current.signal;
+
+      const q = query.trim();
+      const params = new URLSearchParams({ limit: "6", sort: "volume" });
+      if (q) params.set("search", q);
+
+      setLoading(true);
+      fetch(`${API_BASE}/api/markets?${params}`, { signal })
+        .then((r) => (r.ok ? r.json() : { items: [] }))
+        .then((data: { items: SearchResult[] }) => {
+          if (!cancelled) setResults(data.items);
+        })
+        .catch((err) => {
+          if (!cancelled && err.name !== "AbortError") setResults([]);
+        })
+        .finally(() => { if (!cancelled) setLoading(false); });
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
   }, [query]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && query.trim()) {
+      // Preserve existing category/sort; set search; clear page
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("search", query.trim());
+      params.delete("page");
+      router.push(`/?${params.toString()}`);
+      setFocused(false);
+      (e.target as HTMLInputElement).blur();
+    }
+  };
 
   return (
     <div className={`relative z-50 transition-all duration-300 ease-out ${focused ? "w-[520px]" : "w-[320px]"}`}>
@@ -76,6 +134,7 @@ function SearchBar() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="Search markets..."
           onFocus={() => setFocused(true)}
           onBlur={() => setTimeout(() => setFocused(false), 150)}
@@ -90,35 +149,52 @@ function SearchBar() {
             <p className="text-[11px] text-gray-500 uppercase tracking-wider">
               {query ? "Results" : "Trending Markets"}
             </p>
-            <span className="text-[10px] text-gray-600">{results.length} items</span>
+            <span className="text-[10px] text-gray-600">
+              {loading ? "…" : `${results.length} items`}
+            </span>
           </div>
           <div className="max-h-[420px] overflow-y-auto custom-scrollbar pr-1">
-            {results.map((market) => (
-              <Link
-                key={market.id}
-                href={`/markets/${slugify(market.title)}`}
-                className="flex items-center gap-4 px-4 py-3 hover:bg-white/[0.04] transition-all group border-b border-white/[0.03] last:border-0"
-              >
-                <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0">
-                  <Image src={market.image} alt={market.title} fill className="object-cover" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-white truncate group-hover:text-indigo-200 transition-colors">
-                    {market.title}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[11px] text-gray-500">{market.volume}</span>
-                    <span className="px-2 py-0.5 rounded-full bg-white/5 text-[10px] text-gray-400">Crypto</span>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-[14px] font-bold text-emerald-400">{market.options[0].probability}%</div>
-                  <div className="text-[10px] text-gray-500">YES</div>
-                </div>
-              </Link>
-            ))}
-            {results.length === 0 && (
+            {loading ? (
+              <div className="py-6 text-center text-xs text-gray-600">Loading…</div>
+            ) : results.length === 0 ? (
               <div className="py-10 text-center text-sm text-gray-500">No markets found</div>
+            ) : (
+              results.map((market) => {
+                const yesOpt =
+                  market.options.find((o) => o.label.toLowerCase() === "yes") ??
+                  market.options[0];
+                return (
+                  <Link
+                    key={market.id}
+                    href={`/markets/${market.slug}`}
+                    className="flex items-center gap-4 px-4 py-3 hover:bg-white/[0.04] transition-all group border-b border-white/[0.03] last:border-0"
+                  >
+                    <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-[#1a1b1e]">
+                      {market.image ? (
+                        <Image src={market.image} alt={market.title} fill className="object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-[#242529]" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium text-white truncate group-hover:text-indigo-200 transition-colors">
+                        {market.title}
+                      </p>
+                      <span className="text-[11px] text-gray-500 mt-0.5 block">
+                        {formatVol(market.volume)}
+                      </span>
+                    </div>
+                    {yesOpt && (
+                      <div className="text-right shrink-0">
+                        <div className="text-[14px] font-bold text-emerald-400">
+                          {Math.round(yesOpt.probability)}%
+                        </div>
+                        <div className="text-[10px] text-gray-500">YES</div>
+                      </div>
+                    )}
+                  </Link>
+                );
+              })
             )}
           </div>
         </div>

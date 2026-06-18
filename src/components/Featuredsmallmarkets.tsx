@@ -180,6 +180,7 @@ export default function MarketsList() {
   // to sort=volume for the API call (Breaking has no distinct API sort).
   const urlCategory = searchParams.get("category") ?? "";
   const urlSort     = searchParams.get("sort")     ?? "";
+  const urlSearch   = searchParams.get("search")   ?? "";
   const apiSort     = urlSort === "breaking" ? "volume" : (urlSort || "volume");
 
   const [markets,     setMarkets]     = useState<Market[]>([]);
@@ -190,14 +191,15 @@ export default function MarketsList() {
 
   const topRef        = useRef<HTMLDivElement>(null);
   // Track the last-fetched filter so we can detect when it changes and reset page.
-  const prevFilterRef = useRef({ category: urlCategory, sort: urlSort });
+  const prevFilterRef = useRef({ category: urlCategory, sort: urlSort, search: urlSearch });
 
   useEffect(() => {
     const filterChanged =
       prevFilterRef.current.category !== urlCategory ||
-      prevFilterRef.current.sort     !== urlSort;
+      prevFilterRef.current.sort     !== urlSort     ||
+      prevFilterRef.current.search   !== urlSearch;
 
-    prevFilterRef.current = { category: urlCategory, sort: urlSort };
+    prevFilterRef.current = { category: urlCategory, sort: urlSort, search: urlSearch };
 
     // When filter changes, always fetch page 1. Also reset the page indicator
     // so the pagination bar reflects the correct page. If currentPage is already
@@ -213,6 +215,7 @@ export default function MarketsList() {
     params.set("limit", "20");
     params.set("sort",  apiSort);
     if (urlCategory) params.set("category", urlCategory);
+    if (urlSearch)   params.set("search",   urlSearch);
 
     let cancelled = false;
     fetch(`${API_BASE}/api/markets?${params}`)
@@ -231,7 +234,7 @@ export default function MarketsList() {
     return () => { cancelled = true; };
   // apiSort is derived from urlSort so no need to include it separately
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, urlCategory, urlSort]);
+  }, [currentPage, urlCategory, urlSort, urlSearch]);
 
   const goToPage = (page: number) => {
     if (page < 1 || page > totalPages || page === currentPage) return;
@@ -267,8 +270,14 @@ export default function MarketsList() {
       return (
         <div className="flex items-center justify-center py-16 text-center">
           <div>
-            <p className="text-gray-400 text-sm">No markets in this category.</p>
-            <p className="text-gray-600 text-xs mt-1">Check back soon or try a different filter.</p>
+            <p className="text-gray-400 text-sm">
+              {urlSearch ? "No markets found for your search." : "No markets in this category."}
+            </p>
+            <p className="text-gray-600 text-xs mt-1">
+              {urlSearch
+                ? "Try different keywords or browse by category."
+                : "Check back soon or try a different filter."}
+            </p>
           </div>
         </div>
       );
