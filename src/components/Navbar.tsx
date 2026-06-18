@@ -83,6 +83,18 @@ function SearchBar() {
     return MOCK_MARKETS.filter((m) => m.title.toLowerCase().includes(query.toLowerCase())).slice(0, 8);
   }, [query]);
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && query.trim()) {
+      // Preserve existing category/sort; set search; clear page
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("search", query.trim());
+      params.delete("page");
+      router.push(`/?${params.toString()}`);
+      setFocused(false);
+      (e.target as HTMLInputElement).blur();
+    }
+  };
+
   return (
     <div className={`relative z-50 transition-all duration-300 ease-out ${focused ? "w-[520px]" : "w-[320px]"}`}>
       <div className={`flex items-center gap-3 h-11 px-4 rounded-2xl transition-all duration-300 ${focused ? "bg-[#151619] border border-[#34d399] shadow-[0_0_0_1px_rgba(99,102,241,.25),0_20px_80px_rgba(0,0,0,.6)]" : "bg-[#1a1b1e] border border-[#2a2b2f]"}`}>
@@ -90,6 +102,7 @@ function SearchBar() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="Search markets..."
           onFocus={() => setFocused(true)}
           onBlur={() => setTimeout(() => setFocused(false), 150)}

@@ -3,6 +3,8 @@ export interface TraderProfile {
   name: string;
   handle: string;
   avatar: string;
+  avatarUrl: string | null;
+  avatarGrad: string | null;
   bio: string;
   location: string;
   joined: string;
@@ -22,7 +24,7 @@ export interface TraderProfile {
 }
 
 export interface TraderTrade {
-  id: number;
+  id: string;
   market: string;
   category: string;
   side: "YES" | "NO";
@@ -45,7 +47,7 @@ export interface SuggestedTrader {
   name: string;
   handle: string;
   avatar: string;
-  avatarGrad: string;
+  avatarGrad: string | null;
   pnl: string;
   winRate: number;
   isUp: boolean;

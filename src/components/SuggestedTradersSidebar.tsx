@@ -64,7 +64,7 @@ export default function SuggestedTradersSidebar({ traders, currentSlug }: Props)
               {/* Avatar */}
               <div
                 className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
-                style={{ background: trader.avatarGrad }}
+                style={{ background: trader.avatarGrad ?? "linear-gradient(135deg,#6366f1,#8b5cf6)" }}
               >
                 {trader.avatar}
               </div>

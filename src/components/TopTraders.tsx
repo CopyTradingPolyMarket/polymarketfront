@@ -4,28 +4,34 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import Link from "next/link";
 import type { Trader } from "@/types/trader";
 
-const TOP_TRADERS: Trader[] = [
-  { rank: 1,  name: "Marcus V.",    handle: "@marcusv",   pnl: "+$48,200", pnlPercent: 312, winRate: 78, followers: "12.4K", avatar: "MV", isUp: true  },
-  { rank: 2,  name: "Priya S.",     handle: "@priyaseth", pnl: "+$31,700", pnlPercent: 218, winRate: 74, followers: "9.1K",  avatar: "PS", isUp: true  },
-  { rank: 3,  name: "Jake R.",      handle: "@jaker",     pnl: "+$27,400", pnlPercent: 189, winRate: 71, followers: "7.8K",  avatar: "JR", isUp: true  },
-  { rank: 4,  name: "Cleo M.",      handle: "@cleom",     pnl: "+$19,900", pnlPercent: 143, winRate: 68, followers: "5.3K",  avatar: "CM", isUp: true  },
-  { rank: 5,  name: "Tom W.",       handle: "@tomw",      pnl: "+$14,600", pnlPercent: 97,  winRate: 65, followers: "4.0K",  avatar: "TW", isUp: true  },
-  { rank: 6,  name: "Niko B.",      handle: "@nikob",     pnl: "+$9,300",  pnlPercent: 61,  winRate: 63, followers: "3.1K",  avatar: "NB", isUp: true  },
-  { rank: 7,  name: "Emma K.",      handle: "@emmak",     pnl: "+$8,700",  pnlPercent: 58,  winRate: 62, followers: "2.9K",  avatar: "EK", isUp: true  },
-  { rank: 8,  name: "Lucas T.",     handle: "@lucast",    pnl: "+$7,900",  pnlPercent: 54,  winRate: 61, followers: "2.6K",  avatar: "LT", isUp: true  },
-  { rank: 9,  name: "Sophia G.",    handle: "@sophiag",   pnl: "+$7,100",  pnlPercent: 49,  winRate: 60, followers: "2.4K",  avatar: "SG", isUp: true  },
-  { rank: 10, name: "Daniel H.",    handle: "@danh",      pnl: "+$6,500",  pnlPercent: 44,  winRate: 59, followers: "2.1K",  avatar: "DH", isUp: true  },
-  { rank: 11, name: "Olivia P.",    handle: "@oliviap",   pnl: "+$5,800",  pnlPercent: 40,  winRate: 58, followers: "1.9K",  avatar: "OP", isUp: true  },
-  { rank: 12, name: "Ryan J.",      handle: "@ryanj",     pnl: "+$5,100",  pnlPercent: 35,  winRate: 57, followers: "1.8K",  avatar: "RJ", isUp: true  },
-  { rank: 13, name: "Mia D.",       handle: "@miad",      pnl: "+$4,600",  pnlPercent: 31,  winRate: 56, followers: "1.6K",  avatar: "MD", isUp: true  },
-  { rank: 14, name: "Ethan F.",     handle: "@ethanf",    pnl: "+$4,100",  pnlPercent: 28,  winRate: 55, followers: "1.5K",  avatar: "EF", isUp: true  },
-  { rank: 15, name: "Ava C.",       handle: "@avac",      pnl: "+$3,800",  pnlPercent: 25,  winRate: 54, followers: "1.4K",  avatar: "AC", isUp: true  },
-  { rank: 16, name: "Noah Z.",      handle: "@noahz",     pnl: "+$3,200",  pnlPercent: 22,  winRate: 53, followers: "1.2K",  avatar: "NZ", isUp: true  },
-  { rank: 17, name: "Liam Q.",      handle: "@liamq",     pnl: "+$2,700",  pnlPercent: 18,  winRate: 52, followers: "1.1K",  avatar: "LQ", isUp: true  },
-  { rank: 18, name: "Sara L.",      handle: "@saral",     pnl: "-$2,100",  pnlPercent: -14, winRate: 52, followers: "2.2K",  avatar: "SL", isUp: false },
-  { rank: 19, name: "Kevin M.",     handle: "@kevinm",    pnl: "-$3,800",  pnlPercent: -21, winRate: 49, followers: "980",   avatar: "KM", isUp: false },
-  { rank: 20, name: "Hannah R.",    handle: "@hannahr",   pnl: "-$5,400",  pnlPercent: -33, winRate: 47, followers: "840",   avatar: "HR", isUp: false },
-];
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+
+// ─── API shape ────────────────────────────────────────────────────────────────
+
+interface ApiTraderItem {
+  slug: string;
+  name: string | null;
+  avatar: string;
+  totalPnl: number;
+  totalPnlPercent: number;
+  winRate: number;
+  followers: number;
+  totalTrades: number;
+}
+
+function formatPnl(usdc: number): string {
+  const sign = usdc >= 0 ? "+" : "-";
+  const abs = Math.abs(usdc);
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}$${Math.round(abs).toLocaleString()}`;
+  return `${sign}$${abs.toFixed(2)}`;
+}
+
+function formatFollowers(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
 
 const AVATAR_COLORS = [
   "linear-gradient(135deg,#6366f1,#8b5cf6)",
@@ -143,18 +149,44 @@ export default function TopTraders() {
   const animRef = useRef<number | null>(null);
   const pausedRef = useRef(false);
   const [query, setQuery] = useState("");
+  const [traders, setTraders] = useState<Trader[]>([]);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/traders?limit=20&sortBy=pnl`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.traders) return;
+        const items: Trader[] = (data.traders as ApiTraderItem[])
+          .filter((t) => t.totalTrades > 0)
+          .map((t, i) => ({
+            rank:       i + 1,
+            name:       t.name ?? t.slug,
+            handle:     `@${t.slug}`,
+            avatar:     t.avatar,
+            pnl:        formatPnl(t.totalPnl),
+            pnlPercent: Math.round(t.totalPnlPercent),
+            winRate:    Math.round(t.winRate),
+            followers:  formatFollowers(t.followers),
+            isUp:       t.totalPnl >= 0,
+          }));
+        setTraders(items);
+      })
+      .catch(() => {});
+  }, []);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return null;
     const q = query.toLowerCase();
-    return TOP_TRADERS.filter(
+    return traders.filter(
       (t) => t.name.toLowerCase().includes(q) || t.handle.toLowerCase().includes(q)
     );
-  }, [query]);
+  }, [query, traders]);
+
+  const doubled = useMemo(() => [...traders, ...traders], [traders]);
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || filtered !== null) return;
+    if (!el || filtered !== null || traders.length === 0) return;
 
     let pos = 0;
     const speed = 0.4;
@@ -170,9 +202,7 @@ export default function TopTraders() {
 
     animRef.current = requestAnimationFrame(tick);
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [filtered]);
-
-  const doubled = [...TOP_TRADERS, ...TOP_TRADERS];
+  }, [filtered, traders]);
 
   return (
     <div className="flex flex-col h-full">
@@ -184,15 +214,14 @@ export default function TopTraders() {
             <span style={{ fontSize: 13 }}>🏆</span>
             <span className="text-[12px] font-semibold text-gray-200 tracking-wide">Top Traders</span>
           </div>
-          <Link
-            href={'/all-traders'}
-          ><button className="text-[11px] text-gray-600 hover:text-gray-400 transition-colors">
-            All →
-          </button>
+          <Link href="/all-traders">
+            <button className="text-[11px] text-gray-600 hover:text-gray-400 transition-colors">
+              All →
+            </button>
           </Link>
         </div>
 
-        {/* Search — always visible */}
+        {/* Search */}
         <div className="relative">
           <svg
             className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none"
@@ -230,6 +259,10 @@ export default function TopTraders() {
               <TraderRow key={trader.rank} trader={trader} idx={trader.rank - 1} />
             ))
           )}
+        </div>
+      ) : traders.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center">
+          <span className="text-[11px] text-gray-700">Loading…</span>
         </div>
       ) : (
         <div
