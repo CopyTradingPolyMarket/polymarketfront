@@ -15,6 +15,7 @@ export interface Market {
   image: string;
   volume: string;
   options: MarketOption[];
+  slug?: string;
 }
 
 interface Props {
@@ -24,7 +25,7 @@ interface Props {
 
 export default function SmallMarketCard({ market, onSelect }: Props) {
   const router = useRouter();
-  const slug = slugify(market.title);
+  const slug = market.slug ?? slugify(market.title);
 
   return (
     <div
