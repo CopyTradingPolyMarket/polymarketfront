@@ -2,7 +2,7 @@ import HeroSection from "@/src/components/Herosection";
 import FeaturedSmallMarkets from "@/src/components/Featuredsmallmarkets";
 import HomeSidebar from "@/src/components/HomeSidebar";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 interface ApiMarket {
   title: string;

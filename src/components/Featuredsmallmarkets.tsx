@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import SmallMarketCard from "./Marketcard";
 import type { Market } from "./Marketcard";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 interface ApiMarket {
   id: string;
@@ -173,29 +174,64 @@ function PaginationBar({
 }
 
 export default function MarketsList() {
+  const searchParams = useSearchParams();
+
+  // Read filter values from URL. "sort=breaking" is a UI-only token — it maps
+  // to sort=volume for the API call (Breaking has no distinct API sort).
+  const urlCategory = searchParams.get("category") ?? "";
+  const urlSort     = searchParams.get("sort")     ?? "";
+  const apiSort     = urlSort === "breaking" ? "volume" : (urlSort || "volume");
+
   const [markets,     setMarkets]     = useState<Market[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages,  setTotalPages]  = useState(0);
 
-  const topRef = useRef<HTMLDivElement>(null);
+  const topRef        = useRef<HTMLDivElement>(null);
+  // Track the last-fetched filter so we can detect when it changes and reset page.
+  const prevFilterRef = useRef({ category: urlCategory, sort: urlSort });
 
   useEffect(() => {
+    const filterChanged =
+      prevFilterRef.current.category !== urlCategory ||
+      prevFilterRef.current.sort     !== urlSort;
+
+    prevFilterRef.current = { category: urlCategory, sort: urlSort };
+
+    // When filter changes, always fetch page 1. Also reset the page indicator
+    // so the pagination bar reflects the correct page. If currentPage is already
+    // 1 this setState is a no-op and causes no extra re-render.
+    const pageToFetch = filterChanged ? 1 : currentPage;
+    if (filterChanged && currentPage !== 1) setCurrentPage(1);
+
     setLoading(true);
     setError(false);
-    fetch(`${API_BASE}/api/markets?page=${currentPage}&limit=20`)
+
+    const params = new URLSearchParams();
+    params.set("page",  String(pageToFetch));
+    params.set("limit", "20");
+    params.set("sort",  apiSort);
+    if (urlCategory) params.set("category", urlCategory);
+
+    let cancelled = false;
+    fetch(`${API_BASE}/api/markets?${params}`)
       .then((r) => {
         if (!r.ok) throw new Error();
         return r.json() as Promise<ApiResponse>;
       })
       .then((data) => {
+        if (cancelled) return;
         setMarkets(data.items.map(mapMarket));
         setTotalPages(data.totalPages);
       })
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, [currentPage]);
+      .catch(() => { if (!cancelled) setError(true); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
+  // apiSort is derived from urlSort so no need to include it separately
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, urlCategory, urlSort]);
 
   const goToPage = (page: number) => {
     if (page < 1 || page > totalPages || page === currentPage) return;
@@ -223,6 +259,16 @@ export default function MarketsList() {
           <div>
             <p className="text-gray-400 text-sm">Couldn&apos;t load markets.</p>
             <p className="text-gray-600 text-xs mt-1">Please try again later.</p>
+          </div>
+        </div>
+      );
+    }
+    if (markets.length === 0) {
+      return (
+        <div className="flex items-center justify-center py-16 text-center">
+          <div>
+            <p className="text-gray-400 text-sm">No markets in this category.</p>
+            <p className="text-gray-600 text-xs mt-1">Check back soon or try a different filter.</p>
           </div>
         </div>
       );
