@@ -26,20 +26,29 @@ interface ApiMarketDetail {
   description: string | null;
   resolved: boolean;
   outcome: number | null;
+  isLiveCrypto?: boolean;
+  spot?: { symbol: string; value: number } | null;
 }
 
 interface ApiChartPoint {
   t: string;
-  p: number;
+  p?: number;
+  o?: number;
+  h?: number;
+  l?: number;
+  c?: number;
 }
 
-type ApiRange = "1w" | "1m";
+type ChartShape = "line" | "candlestick";
+type ApiRange = "1h" | "6h" | "1d" | "1w" | "1m" | "all";
 
 const RANGE_MAP: Record<Range, ApiRange> = {
+  "1H":  "1h",
+  "6H":  "6h",
+  "1D":  "1d",
   "1W":  "1w",
   "1M":  "1m",
-  "3M":  "1m",
-  "All": "1m",
+  "ALL": "all",
 };
 
 function formatVolume(v: number): string {
@@ -50,19 +59,29 @@ function formatVolume(v: number): string {
 
 function formatChartDate(iso: string, range: ApiRange): string {
   const d = new Date(iso);
-  if (range === "1w") {
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (range === "1h" || range === "6h") {
+    return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+  }
+  if (range === "1d" || range === "1w") {
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", hour12: false });
   }
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function mapMarket(api: ApiMarketDetail): Market {
+interface MappedMarket extends Market {
+  isLiveCrypto: boolean;
+  spot: { symbol: string; value: number } | null;
+}
+
+function mapMarket(api: ApiMarketDetail): MappedMarket {
   return {
     id:      api.id,
     title:   api.title,
     image:   api.image ?? "",
     volume:  formatVolume(api.volume),
     options: api.options,
+    isLiveCrypto: api.isLiveCrypto ?? false,
+    spot: api.spot ?? null,
   };
 }
 
@@ -100,7 +119,7 @@ function CustomTooltip({ active, payload, label, trendUp }: any) {
   );
 }
 
-const RANGES = ["1W", "1M", "3M", "All"] as const;
+const RANGES = ["1H", "6H", "1D", "1W", "1M", "ALL"] as const;
 type Range = (typeof RANGES)[number];
 
 // ─── Mobile Bottom Sheet Bet Panel ───────────────────────────────────────────
@@ -399,12 +418,13 @@ export default function MarketPage() {
   const slug      = params.slug as string;
   const isMobile  = useIsMobile();
 
-  const [market,       setMarket]       = useState<Market | null>(null);
+  const [market,       setMarket]       = useState<MappedMarket | null>(null);
   const [notFound,     setNotFound]     = useState(false);
   const [loadError,    setLoadError]    = useState(false);
   const [activeOption, setActiveOption] = useState(0);
-  const [range,        setRange]        = useState<Range>("1M");
+  const [range,        setRange]        = useState<Range>("1D");
   const [chartData,    setChartData]    = useState<{ date: string; probability: number }[]>([]);
+  const [chartShape,   setChartShape]   = useState<ChartShape>("line");
   const [chartLoading, setChartLoading] = useState(false);
   const [betType,      setBetType]      = useState<"yes" | "no">("yes");
   const [amount,       setAmount]       = useState("");
@@ -434,12 +454,13 @@ export default function MarketPage() {
     setChartLoading(true);
     setChartData([]);
     fetch(`${API_BASE}/api/markets/by-slug/${slug}/history?range=${apiRange}`)
-      .then((r) => r.ok ? r.json() : { points: [] })
-      .then((data: { points: ApiChartPoint[] }) => {
+      .then((r) => r.ok ? r.json() : { points: [], shape: "line" })
+      .then((data: { points: ApiChartPoint[]; shape?: ChartShape }) => {
+        setChartShape(data.shape ?? "line");
         setChartData(
           (data.points ?? []).map((pt) => ({
             date:        formatChartDate(pt.t, apiRange),
-            probability: pt.p,
+            probability: pt.p ?? pt.c ?? 0,
           }))
         );
       })
