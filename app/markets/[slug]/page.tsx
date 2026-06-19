@@ -9,6 +9,7 @@ import {
 import { MOCK_MARKETS } from "@/lib/markets";
 import { Market } from "@/types/market";
 import { slugify } from "@/lib/slugify";
+import Comments from "@/src/components/Comments";
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ interface ApiMarketDetail {
   description: string | null;
   resolved: boolean;
   outcome: number | null;
+  eventId: string;
 }
 
 interface ApiChartPoint {
@@ -63,6 +65,7 @@ function mapMarket(api: ApiMarketDetail): Market {
     image:   api.image ?? "",
     volume:  formatVolume(api.volume),
     options: api.options,
+    eventId: api.eventId,
   };
 }
 
@@ -728,7 +731,7 @@ export default function MarketPage() {
             ))}
           </div>
 
-          {/* Activity */}
+          {/* Activity
           <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, overflow: "hidden" }}>
             <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb", margin: 0 }}>Recent Activity</h2>
@@ -759,7 +762,9 @@ export default function MarketPage() {
                 </div>
               </div>
             ))}
-          </div>
+          </div> */}
+
+          <Comments conditionId={market.id} eventId={market.eventId}/>
 
           {/* Related markets — mobile only, still mock */}
           {isMobile && (

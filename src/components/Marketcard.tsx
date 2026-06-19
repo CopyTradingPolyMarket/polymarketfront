@@ -16,6 +16,7 @@ export interface Market {
   volume: string;
   options: MarketOption[];
   slug?: string;
+  eventId: string;
 }
 
 interface Props {
