@@ -31,7 +31,6 @@ export default function RootLayout({
     <html lang="en" className="overflow-y-scroll no-scrollbar">
       <body className="min-h-screen">
         <Providers>
-  
           <AppProvider>
             <Navbar />
             <main>{children}</main>
