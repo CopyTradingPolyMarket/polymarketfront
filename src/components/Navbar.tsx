@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { usePrivy } from "@privy-io/react-auth";
 import Howitworks from "./Howitworks";
 import SideDrawer from "./SideDrawer";
+import AuthModal from "./AuthModal";
 import CategoryTabs from "./CategoryTabs";
 import Image from "next/image";
 import Link from "next/link";
 
-// ─── Icons ───────────────────────────────────────────────────────────────────
+// ─── Icons ────────────────────────────────────────────────────────────────────
 
 function PolymarketLogo() {
   return (
@@ -32,9 +34,7 @@ function SearchIcon() {
   );
 }
 
-type IconProps = { className?: string };
-
-function InfoIcon({ className }: IconProps) {
+function InfoIcon({ className }: { className?: string }) {
   return (
     <svg width="14" height="14" viewBox="0 0 20 20" fill="none" className={className}>
       <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.8" />
@@ -50,6 +50,8 @@ function HamburgerIcon() {
     </svg>
   );
 }
+
+// ─── Search ───────────────────────────────────────────────────────────────────
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -68,8 +70,6 @@ function formatVol(v: number): string {
   return `$${v.toFixed(0)} vol`;
 }
 
-// ─── SearchBar ───────────────────────────────────────────────────────────────
-
 function SearchBar() {
   const router       = useRouter();
   const searchParams = useSearchParams();
@@ -77,14 +77,12 @@ function SearchBar() {
   const [query,    setQuery]    = useState("");
   const [results,  setResults]  = useState<SearchResult[]>([]);
   const [loading,  setLoading]  = useState(false);
-  // Suppress the ref type warning — we only ever read/write .current inside effects
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const id = setTimeout(() => {
       if (cancelled) return;
-      // Cancel any in-flight request from a previous keystroke
       abortRef.current?.abort();
       abortRef.current = new AbortController();
       const signal = abortRef.current.signal;
@@ -113,7 +111,6 @@ function SearchBar() {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && query.trim()) {
-      // Preserve existing category/sort; set search; clear page
       const params = new URLSearchParams(searchParams.toString());
       params.set("search", query.trim());
       params.delete("page");
@@ -207,7 +204,14 @@ function SearchBar() {
 
 export default function Navbar() {
   const [howItWorksOpen, setHowItWorksOpen] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerOpen,     setDrawerOpen]     = useState(false);
+  const [authOpen,       setAuthOpen]       = useState(false);
+  const [authMode,       setAuthMode]       = useState<"login" | "signup">("signup");
+
+  const { authenticated, logout } = usePrivy();
+
+  const openLogin  = () => { setAuthMode("login");  setAuthOpen(true); };
+  const openSignup = () => { setAuthMode("signup"); setAuthOpen(true); };
 
   return (
     <>
@@ -238,12 +242,29 @@ export default function Navbar() {
 
           {/* Right actions */}
           <div className="flex items-center gap-2 shrink-0">
-            <button className="px-3 py-1.5 text-[13px] text-gray-300 hover:text-white transition-colors rounded-lg hover:bg-[#1a1b1e] cursor-pointer hidden sm:block">
-              Log In
-            </button>
-            <button className="px-3 py-1.5 text-[13px] font-medium text-white bg-[#34d399] hover:bg-[#3ee6aa] transition-colors rounded-lg cursor-pointer hidden sm:block">
-              Sign Up
-            </button>
+            {authenticated ? (
+              <button
+                onClick={() => logout()}
+                className="px-3 py-1.5 text-[13px] text-gray-300 hover:text-white transition-colors rounded-lg hover:bg-[#1a1b1e] cursor-pointer"
+              >
+                Log out
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={openLogin}
+                  className="px-3 py-1.5 text-[13px] text-gray-300 hover:text-white transition-colors rounded-lg hover:bg-[#1a1b1e] cursor-pointer hidden sm:block"
+                >
+                  Log In
+                </button>
+                <button
+                  onClick={openSignup}
+                  className="px-3 py-1.5 text-[13px] font-medium text-white bg-[#34d399] hover:bg-[#3ee6aa] transition-colors rounded-lg cursor-pointer hidden sm:block"
+                >
+                  Sign Up
+                </button>
+              </>
+            )}
             <button
               onClick={() => setDrawerOpen(true)}
               aria-label="Open menu"
@@ -263,7 +284,21 @@ export default function Navbar() {
       </header>
 
       <Howitworks isOpen={howItWorksOpen} onClose={() => setHowItWorksOpen(false)} />
-      <SideDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} onOpenAuth={() => {}} />
+
+      <SideDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onOpenAuth={(mode) => {
+          setDrawerOpen(false);
+          setTimeout(() => { setAuthMode(mode); setAuthOpen(true); }, 180);
+        }}
+      />
+
+      <AuthModal
+        isOpen={authOpen}
+        onClose={() => setAuthOpen(false)}
+        defaultMode={authMode}
+      />
     </>
   );
 }

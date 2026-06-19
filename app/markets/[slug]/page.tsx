@@ -7,8 +7,13 @@ import {
   Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Market } from "@/types/market";
+<<<<<<< HEAD
 import CandlestickChart from "@/src/components/CandlestickChart";
 import type { OhlcPoint } from "@/src/components/CandlestickChart";
+=======
+import { slugify } from "@/lib/slugify";
+import Comments from "@/src/components/Comments";
+>>>>>>> 01a81733930a26823d6780d39f5ba78c9d8d4e3e
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 
@@ -26,8 +31,12 @@ interface ApiMarketDetail {
   description: string | null;
   resolved: boolean;
   outcome: number | null;
+<<<<<<< HEAD
   isLiveCrypto?: boolean;
   spot?: { symbol: string; value: number } | null;
+=======
+  eventId: string;
+>>>>>>> 01a81733930a26823d6780d39f5ba78c9d8d4e3e
 }
 
 interface ApiChartPoint {
@@ -96,8 +105,12 @@ function mapMarket(api: ApiMarketDetail): MappedMarket {
     image:   api.image ?? "",
     volume:  formatVolume(api.volume),
     options: api.options,
+<<<<<<< HEAD
     isLiveCrypto: api.isLiveCrypto ?? false,
     spot: api.spot ?? null,
+=======
+    eventId: api.eventId,
+>>>>>>> 01a81733930a26823d6780d39f5ba78c9d8d4e3e
   };
 }
 
@@ -972,7 +985,7 @@ export default function MarketPage() {
             ))}
           </div>
 
-          {/* Activity */}
+          {/* Activity
           <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, overflow: "hidden" }}>
             <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb", margin: 0 }}>Recent Activity</h2>
@@ -1003,7 +1016,9 @@ export default function MarketPage() {
                 </div>
               </div>
             ))}
-          </div>
+          </div> */}
+
+          <Comments conditionId={market.id} eventId={market.eventId}/>
 
           {/* Related markets — mobile only */}
           {isMobile && relatedMarkets.length > 0 && (
