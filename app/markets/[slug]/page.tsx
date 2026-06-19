@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   AreaChart, Area, XAxis, YAxis,
@@ -52,6 +52,14 @@ const RANGE_MAP: Record<Range, ApiRange> = {
   "1M":  "1m",
   "ALL": "all",
 };
+
+const RANGE_BUCKET: Record<ApiRange, string> = {
+  "1h": "minute", "6h": "minute",
+  "1d": "hour", "1w": "hour",
+  "1m": "day", "all": "halfday",
+};
+
+const SPOT_WINDOW_MS = 30_000;
 
 function formatVolume(v: number): string {
   if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M vol`;
@@ -117,6 +125,22 @@ function CustomTooltip({ active, payload, label, trendUp }: any) {
     }}>
       <p style={{ color: "#6b7280", fontSize: 10, marginBottom: 2 }}>{label}</p>
       <p style={{ color, fontWeight: 700, fontSize: 15 }}>{payload[0].value}%</p>
+    </div>
+  );
+}
+
+function SpotTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: "rgba(10,10,13,0.97)",
+      border: "1px solid rgba(52,211,153,0.2)",
+      borderRadius: 10,
+      padding: "8px 14px",
+      backdropFilter: "blur(12px)",
+    }}>
+      <p style={{ color: "#6b7280", fontSize: 10, marginBottom: 2 }}>{label}</p>
+      <p style={{ color: "#34d399", fontWeight: 700, fontSize: 15 }}>${Number(payload[0].value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
     </div>
   );
 }
@@ -434,6 +458,10 @@ export default function MarketPage() {
   const [livePrices,   setLivePrices]   = useState<{ yes: number; no: number } | null>(null);
   const [isLocked,     setIsLocked]     = useState(false);
   const [wsResolved,   setWsResolved]   = useState<number | null>(null);
+  const [spotData,     setSpotData]     = useState<{ date: string; value: number }[]>([]);
+  const [spotLoading,  setSpotLoading]  = useState(false);
+  const rangeRef = useRef<Range>(range);
+  rangeRef.current = range;
 
   // Fetch market detail
   useEffect(() => {
@@ -509,6 +537,31 @@ export default function MarketPage() {
             setWsResolved(msg.outcome ?? null);
           } else if (msg.type === 'market_locked') {
             setIsLocked(true);
+          } else if (msg.type === 'history_point') {
+            const currentRange = rangeRef.current;
+            const apiRange = RANGE_MAP[currentRange];
+            const expectedBucket = RANGE_BUCKET[apiRange];
+            if (msg.bucket === expectedBucket) {
+              const dateLabel = formatChartDate(msg.t, apiRange);
+              const closeVal: number = msg.c;
+              setChartData((prev) => {
+                if (prev.length > 0 && prev[prev.length - 1].date === dateLabel) {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = { date: dateLabel, probability: closeVal };
+                  return updated;
+                }
+                return [...prev, { date: dateLabel, probability: closeVal }];
+              });
+              setOhlcData((prev) => {
+                const pt: OhlcPoint = { t: msg.t, o: msg.o, h: msg.h, l: msg.l, c: msg.c };
+                if (prev.length > 0 && prev[prev.length - 1].t === msg.t) {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = pt;
+                  return updated;
+                }
+                return [...prev, pt];
+              });
+            }
           } else if (msg.type === 'error') {
             console.error('[ws/prices]', msg.message);
           }
@@ -538,6 +591,86 @@ export default function MarketPage() {
       }
     };
   }, [market, slug]);
+
+  // Spot chart: fetch initial 30s window + subscribe to /ws/spot for live ticks
+  const spotSymbol = market?.isLiveCrypto ? market.spot?.symbol : undefined;
+
+  useEffect(() => {
+    if (!spotSymbol) return;
+    setSpotLoading(true);
+    const encoded = encodeURIComponent(spotSymbol);
+    fetch(`${API_BASE}/api/spot/${encoded}/history`)
+      .then((r) => r.ok ? r.json() : { points: [] })
+      .then((data: { points: { t: number; value: number }[] }) => {
+        const now = Date.now();
+        setSpotData(
+          (data.points ?? [])
+            .filter((pt) => pt.t >= now - SPOT_WINDOW_MS)
+            .map((pt) => ({
+              date: new Date(pt.t).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }),
+              value: pt.value,
+            }))
+        );
+      })
+      .catch(() => setSpotData([]))
+      .finally(() => setSpotLoading(false));
+  }, [spotSymbol]);
+
+  useEffect(() => {
+    if (!spotSymbol) return;
+
+    let cancelled = false;
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let backoff = 1000;
+
+    function connect() {
+      if (cancelled) return;
+      ws = new WebSocket(`${WS_BASE}/ws/spot`);
+
+      ws.onopen = () => { backoff = 1000; };
+
+      ws.onmessage = (ev) => {
+        if (cancelled) return;
+        try {
+          const msg = JSON.parse(ev.data as string);
+          if (msg.type === 'spot_update' && msg.symbol === spotSymbol) {
+            const t = msg.priceTs ? Date.parse(msg.priceTs) : Date.now();
+            const date = new Date(t).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+            setSpotData((prev) => {
+              const cutoff = Date.now() - SPOT_WINDOW_MS;
+              const filtered = prev.filter((_, i) => {
+                const ptDate = prev[i];
+                return ptDate !== undefined;
+              });
+              const next = [...filtered, { date, value: msg.value as number }];
+              if (next.length > 200) next.splice(0, next.length - 200);
+              return next;
+            });
+          }
+        } catch {}
+      };
+
+      ws.onclose = () => {
+        if (cancelled) return;
+        backoff = Math.min(backoff * 2, 30_000);
+        reconnectTimer = setTimeout(connect, backoff);
+      };
+
+      ws.onerror = () => { ws?.close(); };
+    }
+
+    connect();
+
+    return () => {
+      cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
+    };
+  }, [spotSymbol]);
 
   // Merge live WS prices into the options array (no-op when WS is quiet)
   const liveOptions = useMemo(() => {
@@ -687,6 +820,54 @@ export default function MarketPage() {
               );
             })}
           </div>
+
+          {/* Spot chart — primary chart for live-crypto markets */}
+          {market.isLiveCrypto && spotSymbol && (
+            <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: isMobile ? "16px 14px 10px" : "20px 20px 12px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: "#e5e7eb", textTransform: "uppercase" }}>
+                    {spotSymbol}
+                  </span>
+                  <span style={{ fontSize: 11, color: "#6b7280", marginLeft: 8 }}>live · 30s</span>
+                  {spotData.length > 0 && (
+                    <span style={{ fontSize: 16, fontWeight: 800, color: "#fff", marginLeft: 12 }}>
+                      ${spotData[spotData.length - 1].value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ position: "relative" }}>
+                {spotLoading && (
+                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1 }}>
+                    <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.1)", borderTopColor: "rgba(255,255,255,0.5)", animation: "spin 0.8s linear infinite" }} />
+                  </div>
+                )}
+                <div style={{ opacity: spotLoading ? 0.3 : 1, transition: "opacity 0.2s" }}>
+                  {spotData.length === 0 && !spotLoading ? (
+                    <div style={{ height: isMobile ? 120 : 160, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <p style={{ fontSize: 12, color: "#4b5563" }}>Waiting for spot price data...</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={isMobile ? 120 : 160}>
+                      <AreaChart data={spotData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="spotGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%"   stopColor="#34d399" stopOpacity={0.18} />
+                            <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="date" tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(spotData.length / (isMobile ? 3 : 5)))} />
+                        <YAxis domain={["auto", "auto"]} tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
+                        <Tooltip content={(p) => <SpotTooltip {...p} />} />
+                        <Area type="monotone" dataKey="value" stroke="#34d399" strokeWidth={2} fill="url(#spotGrad)" dot={false} activeDot={{ r: 3, strokeWidth: 0 }} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Chart */}
           <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: isMobile ? "16px 14px 10px" : "20px 20px 12px" }}>
