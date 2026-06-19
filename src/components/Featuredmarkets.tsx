@@ -7,6 +7,7 @@ import {
   useCallback,
   useId,
 } from "react";
+import { useRouter } from "next/navigation";
 import {
   AreaChart,
   Area,
@@ -37,95 +38,34 @@ export interface FeaturedMarket {
   recentTrades?: { amount: string; side: "yes" | "no" }[];
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-export const FEATURED_MARKETS: FeaturedMarket[] = [
-  {
-    id: "peru-election",
-    category: "Politics",
-    subcategory: "Global Elections",
-    title: "Peru Presidential Election Winner",
-    flagEmoji: "🇵🇪",
-    options: [
-      { label: "Keiko Fujimori",      percent: 62, color: "blue"   },
-      { label: "Roberto S. Palomino", percent: 38, color: "orange" },
-      { label: "Rafael López Aliaga", percent:  1, color: "purple" },
-      { label: "Carlos Álvarez",      percent:  1, color: "purple" },
-    ],
-    recentTrades: [
-      { amount: "$130", side: "yes" },
-      { amount: "$500", side: "yes" },
-      { amount: "$5",   side: "no"  },
-    ],
-    volume: "$65M",
-    endsAt: "Apr 12, 2026",
-    chartPoints: [44,46,48,50,47,52,55,58,56,62,60,64,63,67,65,70,68,73,71,76,74,79,77,82],
-  },
-  {
-    id: "nba-champion",
-    category: "Sports",
-    subcategory: "NBA Playoffs",
-    title: "2026 NBA Champion",
-    options: [
-      { label: "New York Knicks", percent: 79, color: "blue"   },
-      { label: "Indiana Pacers",  percent: 18, color: "orange" },
-      { label: "OKC Thunder",     percent:  2, color: "purple" },
-      { label: "Other",           percent:  1, color: "purple" },
-    ],
-    volume: "$42M",
-    endsAt: "Jun 30, 2026",
-    chartPoints: [28,32,30,36,40,38,44,48,46,52,55,58,56,60,62,65,64,68,72,70,74,76,78,79],
-  },
-  {
-    id: "iran-peace",
-    category: "Geopolitics",
-    subcategory: "Iran",
-    title: "US × Iran Permanent Peace Deal by End of 2026?",
-    options: [
-      { label: "Yes", percent: 70, color: "green" },
-      { label: "No",  percent: 30, color: "red"   },
-    ],
-    recentTrades: [
-      { amount: "$1.2K", side: "yes" },
-      { amount: "$340",  side: "no"  },
-    ],
-    volume: "$260M",
-    endsAt: "Dec 31, 2026",
-    chartPoints: [18,22,20,26,30,28,34,38,36,42,45,48,46,52,55,58,56,60,63,61,64,67,69,70],
-  },
-  {
-    id: "btc-move",
-    category: "Crypto",
-    subcategory: "Bitcoin",
-    title: "BTC Up or Down 5% in Next 24 Hours?",
-    options: [
-      { label: "Up",   percent: 51, color: "green" },
-      { label: "Down", percent: 49, color: "red"   },
-    ],
-    volume: "$18M",
-    endsAt: "Live · 23h left",
-    chartPoints: [50,51,49,52,50,48,51,50,52,49,51,50,53,51,49,52,50,51,50,52,51,50,52,51],
-  },
-  {
-    id: "french-open",
-    category: "Sports",
-    subcategory: "Tennis",
-    title: "2026 Men's French Open Winner",
-    options: [
-      { label: "Alexander Zverev", percent: 78, color: "blue"   },
-      { label: "Carlos Alcaraz",   percent: 14, color: "orange" },
-      { label: "Novak Djokovic",   percent:  5, color: "purple" },
-      { label: "Other",            percent:  3, color: "purple" },
-    ],
-    volume: "$7M",
-    endsAt: "Jun 8, 2026",
-    chartPoints: [32,36,34,40,44,42,48,52,50,55,58,60,58,62,64,67,65,70,72,74,73,76,77,78],
-  },
-];
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
+const FEATURED_CATEGORIES = [
+  "Sports", "Crypto", "Politics", "Elections", "Culture", "Tech", "AI",
+] as const;
 
 const AUTO_PLAY_INTERVAL = 5500;
 
-// ─── Color tokens ──────────────────────────────────────────────────────────────
+// ─── API types ────────────────────────────────────────────────────────────────
+
+interface ApiMarketItem {
+  slug: string;
+  title: string;
+  volume: number;
+  options: { label: string; probability: number }[];
+}
+
+interface ApiLinePoint   { t: string; p: number }
+interface ApiCandlePoint { t: string; o: number; h: number; l: number; c: number }
+
+interface ApiHistoryResponse {
+  shape: "line" | "candlestick";
+  points: ApiLinePoint[] | ApiCandlePoint[];
+}
+
+// ─── Color tokens ─────────────────────────────────────────────────────────────
 
 const COLOR_MAP: Record<string, { stroke: string; fill: string; text: string; pill: string }> = {
   blue:   { stroke: "#38bdf8", fill: "rgba(56,189,248,0.12)",  text: "#38bdf8", pill: "rgba(56,189,248,0.1)"  },
@@ -136,14 +76,105 @@ const COLOR_MAP: Record<string, { stroke: string; fill: string; text: string; pi
 };
 
 const CATEGORY_DOT: Record<string, string> = {
-  Politics:    "#a78bfa",
-  Sports:      "#38bdf8",
-  Geopolitics: "#fb923c",
-  Crypto:      "#34d399",
-  Tennis:      "#38bdf8",
+  Politics:  "#a78bfa",
+  Elections: "#a78bfa",
+  Sports:    "#38bdf8",
+  Tech:      "#38bdf8",
+  Crypto:    "#34d399",
+  AI:        "#34d399",
+  Culture:   "#fb923c",
 };
 
-// ─── Recharts custom tooltip ───────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function assignColor(label: string, index: number): MarketOption["color"] {
+  const l = label.toLowerCase();
+  if (l === "yes") return "green";
+  if (l === "no")  return "red";
+  const CYCLE = ["blue", "orange", "purple", "purple"] as const;
+  return CYCLE[Math.min(index, CYCLE.length - 1)];
+}
+
+function fmtVol(v: number): string {
+  if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(1)}B`;
+  if (v >= 1_000_000)     return `$${(v / 1_000_000).toFixed(0)}M`;
+  if (v >= 1_000)         return `$${(v / 1_000).toFixed(0)}K`;
+  return `$${v.toFixed(0)}`;
+}
+
+// ─── Data fetching ────────────────────────────────────────────────────────────
+
+function useFeaturedMarkets(onLoad?: (count: number) => void) {
+  const [markets, setMarkets] = useState<FeaturedMarket[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      // Step 1 — one request per category in parallel
+      const catResponses = await Promise.all(
+        FEATURED_CATEGORIES.map((cat) =>
+          fetch(`${API_BASE}/api/markets?category=${encodeURIComponent(cat)}&sort=volume&limit=1`)
+            .then((r) => (r.ok ? (r.json() as Promise<{ items: ApiMarketItem[] }>) : { items: [] }))
+            .catch(() => ({ items: [] as ApiMarketItem[] }))
+        )
+      );
+
+      if (cancelled) return;
+
+      const pairs: { cat: string; item: ApiMarketItem }[] = [];
+      FEATURED_CATEGORIES.forEach((cat, i) => {
+        const item = catResponses[i].items[0];
+        if (item) pairs.push({ cat, item });
+      });
+
+      // Step 2 — history for each market in parallel
+      const histories = await Promise.all(
+        pairs.map(({ item }) =>
+          fetch(`${API_BASE}/api/markets/by-slug/${item.slug}/history?range=1d`)
+            .then((r) => (r.ok ? (r.json() as Promise<ApiHistoryResponse>) : { shape: "line" as const, points: [] }))
+            .catch(() => ({ shape: "line" as const, points: [] as ApiLinePoint[] }))
+        )
+      );
+
+      if (cancelled) return;
+
+      const result: FeaturedMarket[] = pairs.map(({ cat, item }, i) => {
+        const resp = histories[i];
+        const pts  = resp?.points ?? [];
+        // Support both line (pt.p) and candlestick (pt.c) shapes
+        const rawVals = pts.map((pt) => ("p" in pt ? pt.p : (pt as ApiCandlePoint).c));
+        const chartPoints = rawVals.length >= 2 ? rawVals : [];
+
+        return {
+          id:       item.slug,
+          category: cat,
+          title:    item.title,
+          options:  item.options.map((opt, idx) => ({
+            label:   opt.label,
+            percent: Math.round(opt.probability),
+            color:   assignColor(opt.label, idx),
+          })),
+          volume:      fmtVol(item.volume),
+          endsAt:      "",
+          chartPoints,
+        };
+      });
+
+      setMarkets(result);
+      onLoad?.(result.length);
+    }
+
+    load();
+    return () => { cancelled = true; };
+  // onLoad is always a stable setState setter — safe to omit from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return markets;
+}
+
+// ─── Recharts custom tooltip ──────────────────────────────────────────────────
 
 function ChartTooltip({ active, payload, strokeColor }: any) {
   if (!active || !payload?.length) return null;
@@ -151,11 +182,11 @@ function ChartTooltip({ active, payload, strokeColor }: any) {
     <div
       className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold border"
       style={{
-        background: "rgba(10,11,14,0.97)",
+        background:  "rgba(10,11,14,0.97)",
         borderColor: strokeColor + "44",
-        color: strokeColor,
-        boxShadow: `0 0 16px ${strokeColor}22`,
-        fontFamily: "'DM Mono', monospace",
+        color:       strokeColor,
+        boxShadow:   `0 0 16px ${strokeColor}22`,
+        fontFamily:  "'DM Mono', monospace",
       }}
     >
       {payload[0].value.toFixed(1)}%
@@ -163,20 +194,51 @@ function ChartTooltip({ active, payload, strokeColor }: any) {
   );
 }
 
+// ─── Skeleton card ────────────────────────────────────────────────────────────
+
+function SkeletonCard() {
+  return (
+    <article
+      className="flex flex-col h-full overflow-hidden rounded-2xl border border-white/[0.06] relative"
+      style={{ background: "linear-gradient(160deg, #0f1117 0%, #0c0d10 100%)" }}
+    >
+      <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+      <div className="px-5 pt-5 pb-3 shrink-0 animate-pulse space-y-3">
+        <div className="h-2.5 w-16 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
+        <div className="h-5 w-4/5 rounded"       style={{ background: "rgba(255,255,255,0.05)" }} />
+        <div className="h-4 w-3/5 rounded"       style={{ background: "rgba(255,255,255,0.05)" }} />
+        <div className="space-y-2 pt-1">
+          <div className="h-6 rounded" style={{ background: "rgba(255,255,255,0.04)" }} />
+          <div className="h-6 rounded" style={{ background: "rgba(255,255,255,0.04)" }} />
+        </div>
+      </div>
+      <div className="flex-1" style={{ minHeight: 120 }} />
+      <div
+        className="px-5 py-3 border-t shrink-0 animate-pulse"
+        style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.015)" }}
+      >
+        <div className="h-4 w-16 rounded" style={{ background: "rgba(255,255,255,0.05)" }} />
+      </div>
+    </article>
+  );
+}
+
 // ─── Market Card ──────────────────────────────────────────────────────────────
 
 function MarketCard({ market }: { market: FeaturedMarket }) {
-  const gradId = `grad-${useId().replace(/:/g, "")}`;
-  const primary  = market.options[0];
-  const c        = COLOR_MAP[primary.color] ?? COLOR_MAP.blue;
-  const isLive   = market.endsAt.toLowerCase().startsWith("live");
-  const catDot   = CATEGORY_DOT[market.category] ?? "#6b7280";
+  const router  = useRouter();
+  const gradId  = `grad-${useId().replace(/:/g, "")}`;
+  const primary = market.options[0];
+  const c       = COLOR_MAP[primary?.color ?? "blue"] ?? COLOR_MAP.blue;
+  const isLive  = market.endsAt.toLowerCase().startsWith("live");
+  const catDot  = CATEGORY_DOT[market.category] ?? "#6b7280";
+  const slug    = market.id;
 
-  // Build recharts data
-  const chartData = market.chartPoints.map((v, i) => ({ t: i, v }));
-  const lastVal   = market.chartPoints[market.chartPoints.length - 1];
-  const firstVal  = market.chartPoints[0];
-  const delta     = lastVal - firstVal;
+  const hasChart   = market.chartPoints.length >= 2;
+  const chartData  = market.chartPoints.map((v, i) => ({ t: i, v }));
+  const lastVal    = hasChart ? market.chartPoints[market.chartPoints.length - 1] : 0;
+  const firstVal   = hasChart ? market.chartPoints[0] : 0;
+  const delta      = lastVal - firstVal;
   const deltaColor = delta >= 0 ? "#34d399" : "#f87171";
 
   return (
@@ -185,7 +247,10 @@ function MarketCard({ market }: { market: FeaturedMarket }) {
       style={{ background: "linear-gradient(160deg, #0f1117 0%, #0c0d10 100%)" }}
     >
       {/* Top glow line */}
-      <div className="absolute top-0 left-0 right-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${c.stroke}66, transparent)` }} />
+      <div
+        className="absolute top-0 left-0 right-0 h-px"
+        style={{ background: `linear-gradient(90deg, transparent, ${c.stroke}66, transparent)` }}
+      />
 
       {/* ── Header ── */}
       <div className="px-5 pt-5 pb-3 shrink-0">
@@ -197,7 +262,10 @@ function MarketCard({ market }: { market: FeaturedMarket }) {
             )}
             <span className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full" style={{ background: catDot }} />
-              <span className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: catDot }}>
+              <span
+                className="text-[10px] font-semibold tracking-widest uppercase"
+                style={{ color: catDot }}
+              >
                 {market.category}
               </span>
             </span>
@@ -207,27 +275,33 @@ function MarketCard({ market }: { market: FeaturedMarket }) {
           </div>
 
           {isLive ? (
-            <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide px-2 py-0.5 rounded-full" style={{ background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.2)" }}>
+            <span
+              className="flex items-center gap-1 text-[10px] font-bold tracking-wide px-2 py-0.5 rounded-full"
+              style={{ background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.2)" }}
+            >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               LIVE
             </span>
-          ) : (
+          ) : market.endsAt ? (
             <span className="text-[10px] text-gray-600 flex items-center gap-1">
               <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-                <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.4"/>
-                <path d="M5 1v3M11 1v3M2 7h12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M5 1v3M11 1v3M2 7h12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
               </svg>
               {market.endsAt}
             </span>
-          )}
+          ) : null}
         </div>
 
         {/* Title */}
-        <h3 className="text-[17px] font-bold text-white leading-snug line-clamp-2 mb-4" style={{ letterSpacing: "-0.01em" }}>
+        <h3
+          className="text-[17px] font-bold text-white leading-snug line-clamp-2 mb-4"
+          style={{ letterSpacing: "-0.01em" }}
+        >
           {market.title}
         </h3>
 
-        {/* Options */}
+        {/* Options bars — first two */}
         <div className="space-y-2">
           {market.options.slice(0, 2).map((opt, i) => {
             const oc = COLOR_MAP[opt.color] ?? COLOR_MAP.blue;
@@ -239,13 +313,20 @@ function MarketCard({ market }: { market: FeaturedMarket }) {
                 >
                   {opt.percent}%
                 </span>
-                <div className="flex-1 relative h-[3px] rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                <div
+                  className="flex-1 relative h-[3px] rounded-full overflow-hidden"
+                  style={{ background: "rgba(255,255,255,0.05)" }}
+                >
                   <div
                     className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
                     style={{ width: `${opt.percent}%`, background: i === 0 ? oc.stroke : "#1f2937" }}
                   />
                 </div>
-                <span className={`text-[12px] truncate flex-1 min-w-0 ${i === 0 ? "text-gray-200 font-medium" : "text-gray-600"}`}>
+                <span
+                  className={`text-[12px] truncate flex-1 min-w-0 ${
+                    i === 0 ? "text-gray-200 font-medium" : "text-gray-600"
+                  }`}
+                >
                   {opt.label}
                 </span>
               </div>
@@ -253,7 +334,7 @@ function MarketCard({ market }: { market: FeaturedMarket }) {
           })}
         </div>
 
-        {/* Rest as pills */}
+        {/* Extra options as pills */}
         {market.options.length > 2 && (
           <div className="flex flex-wrap gap-1.5 mt-2.5">
             {market.options.slice(2).map((opt) => {
@@ -271,18 +352,20 @@ function MarketCard({ market }: { market: FeaturedMarket }) {
           </div>
         )}
 
-        {/* Recent trades */}
+        {/* Recent trades (optional — not populated from API) */}
         {market.recentTrades && (
           <div className="flex items-center gap-1.5 mt-3 flex-wrap">
-            <span className="text-[9px] text-gray-700 font-semibold tracking-wider uppercase mr-0.5">Recent</span>
+            <span className="text-[9px] text-gray-700 font-semibold tracking-wider uppercase mr-0.5">
+              Recent
+            </span>
             {market.recentTrades.map((t, i) => (
               <span
                 key={i}
                 className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                 style={{
                   background: t.side === "yes" ? "rgba(52,211,153,0.08)" : "rgba(248,113,113,0.08)",
-                  color: t.side === "yes" ? "#34d399" : "#f87171",
-                  border: `1px solid ${t.side === "yes" ? "rgba(52,211,153,0.2)" : "rgba(248,113,113,0.2)"}`,
+                  color:      t.side === "yes" ? "#34d399"                : "#f87171",
+                  border:     `1px solid ${t.side === "yes" ? "rgba(52,211,153,0.2)" : "rgba(248,113,113,0.2)"}`,
                 }}
               >
                 {t.side === "yes" ? "▲" : "▼"} {t.amount}
@@ -292,50 +375,55 @@ function MarketCard({ market }: { market: FeaturedMarket }) {
         )}
       </div>
 
-      {/* ── Chart ── */}
-      <div className="flex-1 min-h-0 relative px-0 pb-0" style={{ minHeight: 120 }}>
-        {/* Delta badge */}
-        <div className="absolute top-2 right-4 z-10 flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold" style={{ background: "rgba(0,0,0,0.5)", color: deltaColor }}>
-          {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}pp
-        </div>
+      {/* ── Chart (hidden when fewer than 2 points) ── */}
+      {hasChart ? (
+        <div className="flex-1 min-h-0 relative px-0 pb-0" style={{ minHeight: 120 }}>
+          {/* Delta badge */}
+          <div
+            className="absolute top-2 right-4 z-10 flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold"
+            style={{ background: "rgba(0,0,0,0.5)", color: deltaColor }}
+          >
+            {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}pp
+          </div>
 
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stopColor={c.stroke} stopOpacity={0.25} />
-                <stop offset="100%" stopColor={c.stroke} stopOpacity={0}    />
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="t" hide />
-            <YAxis
-              domain={["dataMin - 5", "dataMax + 5"]}
-              hide
-            />
-            <Tooltip
-              content={(props) => <ChartTooltip {...props} strokeColor={c.stroke} />}
-              cursor={{ stroke: c.stroke, strokeWidth: 1, strokeOpacity: 0.3, strokeDasharray: "3 3" }}
-            />
-            <Area
-              type="monotoneX"
-              dataKey="v"
-              stroke={c.stroke}
-              strokeWidth={2}
-              fill={`url(#${gradId})`}
-              dot={false}
-              activeDot={{ r: 4, fill: c.stroke, stroke: "#0c0d10", strokeWidth: 2 }}
-              isAnimationActive={false}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"   stopColor={c.stroke} stopOpacity={0.25} />
+                  <stop offset="100%" stopColor={c.stroke} stopOpacity={0}    />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="t" hide />
+              <YAxis domain={["dataMin - 5", "dataMax + 5"]} hide />
+              <Tooltip
+                content={(props) => <ChartTooltip {...props} strokeColor={c.stroke} />}
+                cursor={{ stroke: c.stroke, strokeWidth: 1, strokeOpacity: 0.3, strokeDasharray: "3 3" }}
+              />
+              <Area
+                type="monotoneX"
+                dataKey="v"
+                stroke={c.stroke}
+                strokeWidth={2}
+                fill={`url(#${gradId})`}
+                dot={false}
+                activeDot={{ r: 4, fill: c.stroke, stroke: "#0c0d10", strokeWidth: 2 }}
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
 
-        {/* Time axis */}
-        <div className="absolute bottom-1.5 left-4 right-4 flex justify-between pointer-events-none">
-          {["1d ago", "18h", "12h", "6h", "Now"].map((t) => (
-            <span key={t} className="text-[9px] text-gray-700">{t}</span>
-          ))}
+          {/* Time axis labels */}
+          <div className="absolute bottom-1.5 left-4 right-4 flex justify-between pointer-events-none">
+            {["1d ago", "18h", "12h", "6h", "Now"].map((t) => (
+              <span key={t} className="text-[9px] text-gray-700">{t}</span>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        // Spacer keeps footer pinned to bottom when there's no chart
+        <div className="flex-1" style={{ minHeight: 120 }} />
+      )}
 
       {/* ── Footer ── */}
       <div
@@ -344,14 +432,15 @@ function MarketCard({ market }: { market: FeaturedMarket }) {
       >
         <div className="flex items-center gap-1.5">
           <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-            <path d="M2 12h12M4 9h8M6 6h4" stroke="#4b5563" strokeWidth="1.6" strokeLinecap="round"/>
+            <path d="M2 12h12M4 9h8M6 6h4" stroke="#4b5563" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
           <span className="text-[11px] font-semibold text-gray-500">{market.volume}</span>
           <span className="text-[9px] text-gray-700 font-medium tracking-wider uppercase">Vol</span>
         </div>
 
         <button
-          className="text-[11px] font-bold px-3 py-1 rounded-lg transition-all active:scale-95"
+          onClick={() => router.push(`/markets/${slug}`)}
+          className="text-[11px] font-bold px-3 py-1 rounded-lg transition-all active:scale-95 cursor-pointer"
           style={{ background: c.fill, color: c.text, border: `1px solid ${c.stroke}33` }}
         >
           Trade →
@@ -364,41 +453,51 @@ function MarketCard({ market }: { market: FeaturedMarket }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 interface FeaturedMarketsProps {
-  markets?: FeaturedMarket[];
+  markets?: FeaturedMarket[];        // optional override; if omitted, fetched from API
   externalIndex?: number;
   setExternalIndex?: (i: number) => void;
   paused?: boolean;
   setPaused?: (p: boolean) => void;
+  onLoad?: (count: number) => void;
 }
 
 export default function FeaturedMarkets({
-  markets = FEATURED_MARKETS,
+  markets: marketsProp,
   externalIndex,
   setExternalIndex,
   paused: externalPaused,
   setPaused: setExternalPaused,
+  onLoad,
 }: FeaturedMarketsProps) {
   const controlled = externalIndex !== undefined;
 
   const [internalIndex,  setInternalIndex]  = useState(0);
   const [internalPaused, setInternalPaused] = useState(false);
 
-  const index    = controlled ? externalIndex!      : internalIndex;
-  const paused   = controlled ? externalPaused!     : internalPaused;
-  const setIndex = controlled ? setExternalIndex!   : setInternalIndex;
-  const setPaused= controlled ? setExternalPaused!  : setInternalPaused;
+  const index     = controlled ? externalIndex!     : internalIndex;
+  const paused    = controlled ? externalPaused!    : internalPaused;
+  const setIndex  = controlled ? setExternalIndex!  : setInternalIndex;
+  const setPaused = controlled ? setExternalPaused! : setInternalPaused;
+
+  // If a markets prop is passed, skip fetching; otherwise fetch from API.
+  const fetchedMarkets = useFeaturedMarkets(marketsProp ? undefined : onLoad);
+  const markets    = marketsProp ?? fetchedMarkets ?? [];
+  const isLoading  = !marketsProp && fetchedMarkets === null;
 
   const dragStart = useRef<number | null>(null);
   const total     = markets.length;
 
-  const prev = useCallback(() => setIndex(Math.max(0, index - 1)),  [index, setIndex]);
-  const next = useCallback(() => setIndex((index + 1) % total),     [index, total, setIndex]);
+  const prev = useCallback(() => setIndex(Math.max(0, index - 1)), [index, setIndex]);
+  const next = useCallback(
+    () => setIndex((index + 1) % Math.max(1, total)),
+    [index, total, setIndex]
+  );
 
   useEffect(() => {
-    if (paused) return;
+    if (paused || isLoading || total === 0) return;
     const id = setInterval(next, AUTO_PLAY_INTERVAL);
     return () => clearInterval(id);
-  }, [paused, next]);
+  }, [paused, next, isLoading, total]);
 
   const onPointerDown = (e: React.PointerEvent) => { dragStart.current = e.clientX; };
   const onPointerUp   = (e: React.PointerEvent) => {
@@ -407,6 +506,27 @@ export default function FeaturedMarkets({
     if (Math.abs(delta) > 40) { delta > 0 ? next() : prev(); setPaused(true); }
     dragStart.current = null;
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+        <div className="flex-1 overflow-hidden rounded-2xl">
+          <SkeletonCard />
+        </div>
+      </div>
+    );
+  }
+
+  if (markets.length === 0) {
+    return (
+      <div
+        className="flex flex-col h-full items-center justify-center rounded-2xl border border-white/[0.06]"
+        style={{ fontFamily: "'DM Sans', sans-serif", background: "linear-gradient(160deg, #0f1117 0%, #0c0d10 100%)" }}
+      >
+        <p className="text-gray-600 text-sm">No featured markets available.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -420,7 +540,7 @@ export default function FeaturedMarkets({
         <div
           className="flex h-full"
           style={{
-            transform: `translateX(-${index * 100}%)`,
+            transform:  `translateX(-${index * 100}%)`,
             transition: "transform 450ms cubic-bezier(0.22,1,0.36,1)",
           }}
         >

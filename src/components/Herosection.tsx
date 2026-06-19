@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import FeaturedMarkets, { FEATURED_MARKETS } from "./Featuredmarkets";
+import FeaturedMarkets from "./Featuredmarkets";
 import TopTraders from "./TopTraders";
 
 function ChevronLeft() {
@@ -20,9 +20,9 @@ function ChevronRightNav() {
 }
 
 export default function HeroSection() {
-  const [index, setIndex] = useState(0);
+  const [index,  setIndex]  = useState(0);
   const [paused, setPaused] = useState(false);
-  const total = FEATURED_MARKETS.length;
+  const [total,  setTotal]  = useState(0);
 
   const prev = useCallback(() => { setIndex((i) => Math.max(0, i - 1)); setPaused(true); }, []);
   const next = useCallback(() => { setIndex((i) => (i + 1) % total); setPaused(true); }, [total]);
@@ -42,6 +42,7 @@ export default function HeroSection() {
             setExternalIndex={setIndex}
             paused={paused}
             setPaused={setPaused}
+            onLoad={setTotal}
           />
 
           {/* Pagination + Explore — sits right below the chart */}
