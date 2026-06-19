@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import Link from "next/link";
 import type { Trader } from "@/types/trader";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 // ─── API shape ────────────────────────────────────────────────────────────────
 
@@ -31,6 +31,20 @@ function formatFollowers(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
+}
+
+function mapApiTrader(t: ApiTraderItem, rank: number): Trader {
+  return {
+    rank,
+    name:       t.name ?? t.slug,
+    handle:     `@${t.slug}`,
+    avatar:     t.avatar,
+    pnl:        formatPnl(t.totalPnl),
+    pnlPercent: Math.round(t.totalPnlPercent),
+    winRate:    Math.round(t.winRate),
+    followers:  formatFollowers(t.followers),
+    isUp:       t.totalPnl >= 0,
+  };
 }
 
 const AVATAR_COLORS = [
@@ -146,47 +160,73 @@ function TraderRow({ trader, idx }: { trader: Trader; idx: number }) {
 
 export default function TopTraders() {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const animRef = useRef<number | null>(null);
+  const animRef   = useRef<number | null>(null);
   const pausedRef = useRef(false);
-  const [query, setQuery] = useState("");
-  const [traders, setTraders] = useState<Trader[]>([]);
+  const abortRef  = useRef<AbortController | null>(null);
 
+  const [query,         setQuery]         = useState("");
+  const [traders,       setTraders]       = useState<Trader[]>([]);
+  const [searchResults, setSearchResults] = useState<Trader[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  // ── Top-20 load (unchanged) ───────────────────────────────────────────────
   useEffect(() => {
     fetch(`${API_BASE}/api/traders?limit=20&sortBy=pnl`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data?.traders) return;
-        const items: Trader[] = (data.traders as ApiTraderItem[])
+        const items = (data.traders as ApiTraderItem[])
           .filter((t) => t.totalTrades > 0)
-          .map((t, i) => ({
-            rank:       i + 1,
-            name:       t.name ?? t.slug,
-            handle:     `@${t.slug}`,
-            avatar:     t.avatar,
-            pnl:        formatPnl(t.totalPnl),
-            pnlPercent: Math.round(t.totalPnlPercent),
-            winRate:    Math.round(t.winRate),
-            followers:  formatFollowers(t.followers),
-            isUp:       t.totalPnl >= 0,
-          }));
+          .map((t, i) => mapApiTrader(t, i + 1));
         setTraders(items);
       })
       .catch(() => {});
   }, []);
 
-  const filtered = useMemo(() => {
-    if (!query.trim()) return null;
-    const q = query.toLowerCase();
-    return traders.filter(
-      (t) => t.name.toLowerCase().includes(q) || t.handle.toLowerCase().includes(q)
-    );
-  }, [query, traders]);
+  // ── Debounced backend search ──────────────────────────────────────────────
+  useEffect(() => {
+    const q = query.trim();
+
+    if (!q) {
+      abortRef.current?.abort();
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    setSearchLoading(true);
+
+    const id = setTimeout(() => {
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
+      const { signal } = abortRef.current;
+
+      fetch(
+        `${API_BASE}/api/traders?search=${encodeURIComponent(q)}&limit=8&sortBy=pnl`,
+        { signal }
+      )
+        .then((r) => (r.ok ? r.json() : { traders: [] }))
+        .then((data: { traders: ApiTraderItem[] }) => {
+          setSearchResults((data.traders ?? []).map((t, i) => mapApiTrader(t, i + 1)));
+          setSearchLoading(false);
+        })
+        .catch((err) => {
+          if (err.name !== "AbortError") {
+            setSearchResults([]);
+            setSearchLoading(false);
+          }
+        });
+    }, 300);
+
+    return () => clearTimeout(id);
+  }, [query]);
 
   const doubled = useMemo(() => [...traders, ...traders], [traders]);
 
+  // ── Auto-scroll (top-20 list, independent of search) ─────────────────────
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || filtered !== null || traders.length === 0) return;
+    if (!el || traders.length === 0) return;
 
     let pos = 0;
     const speed = 0.4;
@@ -202,7 +242,9 @@ export default function TopTraders() {
 
     animRef.current = requestAnimationFrame(tick);
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [filtered, traders]);
+  }, [traders]);
+
+  const showDropdown = query.trim().length > 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -221,7 +263,7 @@ export default function TopTraders() {
           </Link>
         </div>
 
-        {/* Search */}
+        {/* Search input + dropdown overlay */}
         <div className="relative">
           <svg
             className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none"
@@ -246,21 +288,31 @@ export default function TopTraders() {
               ✕
             </button>
           )}
+
+          {/* Dropdown — overlays the list, does not replace it */}
+          {showDropdown && (
+            <div
+              className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg border border-white/[0.08] overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
+              style={{ background: "#0e0f11" }}
+            >
+              {searchLoading ? (
+                <div className="text-[11px] text-gray-600 text-center py-3">Searching…</div>
+              ) : searchResults.length === 0 ? (
+                <div className="text-[11px] text-gray-600 text-center py-3">No traders found</div>
+              ) : (
+                <div className="max-h-[280px] overflow-y-auto px-1" style={{ scrollbarWidth: "none" }}>
+                  {searchResults.map((trader, idx) => (
+                    <TraderRow key={`${trader.handle}-${idx}`} trader={trader} idx={idx} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* List */}
-      {filtered !== null ? (
-        <div className="overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: "none" }}>
-          {filtered.length === 0 ? (
-            <div className="text-[11px] text-gray-600 text-center py-6">No traders found</div>
-          ) : (
-            filtered.map((trader) => (
-              <TraderRow key={trader.rank} trader={trader} idx={trader.rank - 1} />
-            ))
-          )}
-        </div>
-      ) : traders.length === 0 ? (
+      {/* Top-20 auto-scrolling list — always visible, always independent of search */}
+      {traders.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <span className="text-[11px] text-gray-700">Loading…</span>
         </div>

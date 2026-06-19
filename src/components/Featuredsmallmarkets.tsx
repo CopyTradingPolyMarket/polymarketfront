@@ -181,7 +181,7 @@ export default function MarketsList() {
   const urlCategory = searchParams.get("category") ?? "";
   const urlSort     = searchParams.get("sort")     ?? "";
   const urlSearch   = searchParams.get("search")   ?? "";
-  const apiSort     = urlSort === "breaking" ? "volume" : (urlSort || "volume");
+  const apiSort     = urlSort === "breaking" ? "movers" : (urlSort || "volume");
 
   const [markets,     setMarkets]     = useState<Market[]>([]);
   const [loading,     setLoading]     = useState(true);

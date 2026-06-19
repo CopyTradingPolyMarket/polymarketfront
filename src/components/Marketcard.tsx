@@ -28,6 +28,9 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
   const router = useRouter();
   const slug = market.slug ?? slugify(market.title);
 
+  const yesOpt = market.options.find((o) => o.label.toLowerCase() === "yes") ?? market.options[0];
+  const noOpt  = market.options.find((o) => o.label.toLowerCase() === "no")  ?? market.options[1];
+
   return (
     <div
       onClick={() => router.push(`/markets/${slug}`)}
@@ -46,38 +49,31 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
         </h3>
       </div>
 
-      {/* OPTIONS */}
-      <div className="flex flex-col gap-2">
-        {market.options.map((opt, idx) => (
-          <div key={idx} className="flex items-center justify-between gap-2">
-            <span className="text-[12px] text-gray-400 min-w-[90px]">
-              {opt.label}
-            </span>
+      {/* OPTIONS — single Yes/No row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-[20px] font-bold text-white leading-none">
+            {yesOpt?.probability ?? 0}%
+          </span>
+          <span className="text-[11px] text-gray-500">Yes</span>
+        </div>
 
-            <div className="flex items-center">
-
-              <span className="text-[13px] font-semibold text-white w-[50px] text-right mr-4">
-                {opt.probability}%
-              </span>
-
-              <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                <button
-                  onClick={() => onSelect?.(market.id, opt.label, "yes")}
-                  className="px-2 py-1 text-[11px] rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition"
-                >
-                  Yes
-                </button>
-
-                <button
-                  onClick={() => onSelect?.(market.id, opt.label, "no")}
-                  className="px-2 py-1 text-[11px] rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
-                >
-                  No
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
+        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => onSelect?.(market.id, yesOpt?.label ?? "Yes", "yes")}
+            className="px-2 py-1 text-[11px] rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition"
+          >
+            Yes
+          </button>
+          {noOpt && (
+            <button
+              onClick={() => onSelect?.(market.id, noOpt.label, "no")}
+              className="px-2 py-1 text-[11px] rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
+            >
+              No
+            </button>
+          )}
+        </div>
       </div>
 
       {/* FOOTER */}
