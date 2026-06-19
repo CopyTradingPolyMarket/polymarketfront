@@ -9,6 +9,8 @@ import {
 import { MOCK_MARKETS } from "@/lib/markets";
 import { Market } from "@/types/market";
 import { slugify } from "@/lib/slugify";
+import CandlestickChart from "@/src/components/CandlestickChart";
+import type { OhlcPoint } from "@/src/components/CandlestickChart";
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 
@@ -424,6 +426,7 @@ export default function MarketPage() {
   const [activeOption, setActiveOption] = useState(0);
   const [range,        setRange]        = useState<Range>("1D");
   const [chartData,    setChartData]    = useState<{ date: string; probability: number }[]>([]);
+  const [ohlcData,     setOhlcData]     = useState<OhlcPoint[]>([]);
   const [chartShape,   setChartShape]   = useState<ChartShape>("line");
   const [chartLoading, setChartLoading] = useState(false);
   const [betType,      setBetType]      = useState<"yes" | "no">("yes");
@@ -453,18 +456,28 @@ export default function MarketPage() {
     const apiRange = RANGE_MAP[range];
     setChartLoading(true);
     setChartData([]);
+    setOhlcData([]);
     fetch(`${API_BASE}/api/markets/by-slug/${slug}/history?range=${apiRange}`)
       .then((r) => r.ok ? r.json() : { points: [], shape: "line" })
       .then((data: { points: ApiChartPoint[]; shape?: ChartShape }) => {
-        setChartShape(data.shape ?? "line");
+        const shape = data.shape ?? "line";
+        const pts = data.points ?? [];
+        setChartShape(shape);
+        if (shape === "candlestick") {
+          setOhlcData(pts.filter((pt): pt is OhlcPoint => pt.o != null).map((pt) => ({
+            t: pt.t, o: pt.o!, h: pt.h!, l: pt.l!, c: pt.c!,
+          })));
+        } else {
+          setOhlcData([]);
+        }
         setChartData(
-          (data.points ?? []).map((pt) => ({
+          pts.map((pt) => ({
             date:        formatChartDate(pt.t, apiRange),
             probability: pt.p ?? pt.c ?? 0,
           }))
         );
       })
-      .catch(() => setChartData([]))
+      .catch(() => { setChartData([]); setOhlcData([]); })
       .finally(() => setChartLoading(false));
   }, [market, range]);
 
@@ -714,6 +727,8 @@ export default function MarketPage() {
                   <div style={{ height: isMobile ? 160 : 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <p style={{ fontSize: 12, color: "#4b5563" }}>No price history available for this range.</p>
                   </div>
+                ) : chartShape === "candlestick" && ohlcData.length > 0 ? (
+                  <CandlestickChart points={ohlcData} height={isMobile ? 160 : 220} isMobile={isMobile} />
                 ) : (
                   <ResponsiveContainer width="100%" height={isMobile ? 160 : 220}>
                     <AreaChart data={chartData} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
