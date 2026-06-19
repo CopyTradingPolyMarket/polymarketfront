@@ -17,12 +17,20 @@ interface ApiEvent {
   markets: { volume: number }[];
 }
 
+interface ApiCategory {
+  tag: string;
+  volume: number;
+  marketCount: number;
+}
+
 // Vercel deploy
 
 export default async function Home() {
-  const [marketsRes, eventsRes] = await Promise.all([
+  const [marketsRes, eventsRes, categoriesRes, breakingRes] = await Promise.all([
     fetch(`${API_BASE}/api/markets?sort=volume&limit=6&includeResolved=false`, { cache: "no-store" }),
     fetch(`${API_BASE}/api/events?limit=3`, { cache: "no-store" }),
+    fetch(`${API_BASE}/api/categories/volume`, { cache: "no-store" }),
+    fetch(`${API_BASE}/api/markets?sort=movers&limit=3&includeResolved=false`, { cache: "no-store" }),
   ]);
 
   const markets: ApiMarket[] = marketsRes.ok
@@ -30,6 +38,12 @@ export default async function Home() {
     : [];
   const events: ApiEvent[] = eventsRes.ok
     ? ((await eventsRes.json()) as { items: ApiEvent[] }).items
+    : [];
+  const categories: ApiCategory[] = categoriesRes.ok
+    ? ((await categoriesRes.json()) as { categories: ApiCategory[] }).categories
+    : [];
+  const breakingMarkets: ApiMarket[] = breakingRes.ok
+    ? ((await breakingRes.json()) as { items: ApiMarket[] }).items
     : [];
 
   return (
@@ -40,7 +54,7 @@ export default async function Home() {
           <FeaturedSmallMarkets />
         </div>
         <div className="w-[25%] hidden md:block">
-          <HomeSidebar markets={markets} events={events} />
+          <HomeSidebar markets={markets} events={events} categories={categories} breakingMarkets={breakingMarkets} />
         </div>
       </div>
     </main>

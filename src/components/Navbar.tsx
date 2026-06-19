@@ -205,8 +205,6 @@ function SearchBar() {
 
 // ─── Navbar ───────────────────────────────────────────────────────────────────
 
-const DEMO_IS_LOGGED_IN = false;
-
 export default function Navbar() {
   const [howItWorksOpen, setHowItWorksOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -265,7 +263,7 @@ export default function Navbar() {
       </header>
 
       <Howitworks isOpen={howItWorksOpen} onClose={() => setHowItWorksOpen(false)} />
-      <SideDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} isLoggedIn={DEMO_IS_LOGGED_IN} />
+      <SideDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} onOpenAuth={() => {}} />
     </>
   );
 }

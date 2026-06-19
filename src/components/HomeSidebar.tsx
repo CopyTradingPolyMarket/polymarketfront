@@ -1,4 +1,5 @@
-import type { HotTopic, TopCategory } from "@/types/sidebar";
+import Link from "next/link";
+import type { ReactNode } from "react";
 
 // ─── API shapes ───────────────────────────────────────────────────────────────
 
@@ -15,39 +16,41 @@ interface ApiEvent {
   markets: { volume: number }[];
 }
 
+interface CategoryItem {
+  tag: string;
+  volume: number;
+  marketCount: number;
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
   markets: ApiMarket[];
   events: ApiEvent[];
+  categories: CategoryItem[];
+  breakingMarkets: ApiMarket[];
 }
 
-// ─── Hardcoded data (no aggregation endpoint available) ───────────────────────
-
-const HOT_TOPICS: HotTopic[] = [
-  { rank: 1, label: "NBA",     volume: "$7M today",  category: "Sports"   },
-  { rank: 2, label: "Knicks",  volume: "$8M today",  category: "Sports"   },
-  { rank: 3, label: "Fed",     volume: "$13M today", category: "Finance"  },
-  { rank: 4, label: "Spurs",   volume: "$8M today",  category: "Sports"   },
-  { rank: 5, label: "Futures", volume: "$3M today",  category: "Crypto"   },
-];
-
-const TOP_CATEGORIES: TopCategory[] = [
-  { icon: "🏀", label: "Sports",   markets: 412, volume: "$28M", color: "rgba(59,130,246,0.12)",  accent: "#60a5fa" },
-  { icon: "🗳️", label: "Politics", markets: 187, volume: "$41M", color: "rgba(139,92,246,0.12)",  accent: "#a78bfa" },
-  { icon: "💰", label: "Finance",  markets: 233, volume: "$63M", color: "rgba(234,179,8,0.12)",   accent: "#facc15" },
-  { icon: "₿",  label: "Crypto",   markets: 156, volume: "$19M", color: "rgba(16,185,129,0.12)",  accent: "#34d399" },
-  { icon: "🚀", label: "Tech",     markets:  98, volume: "$8M",  color: "rgba(251,146,60,0.12)",  accent: "#fb923c" },
-  { icon: "🎭", label: "Culture",  markets:  74, volume: "$4M",  color: "rgba(236,72,153,0.12)",  accent: "#f472b6" },
-];
+// ─── Category metadata ────────────────────────────────────────────────────────
 
 const categoryColors: Record<string, { bg: string; text: string }> = {
-  Sports:  { bg: "rgba(59,130,246,0.12)",  text: "#60a5fa"  },
-  Finance: { bg: "rgba(234,179,8,0.12)",   text: "#facc15"  },
-  Crypto:  { bg: "rgba(16,185,129,0.12)",  text: "#34d399"  },
-  Politics:{ bg: "rgba(139,92,246,0.12)",  text: "#a78bfa"  },
-  Tech:    { bg: "rgba(251,146,60,0.12)",  text: "#fb923c"  },
-  Culture: { bg: "rgba(236,72,153,0.12)",  text: "#f472b6"  },
+  Sports:    { bg: "rgba(59,130,246,0.12)",  text: "#60a5fa" },
+  Crypto:    { bg: "rgba(16,185,129,0.12)",  text: "#34d399" },
+  Politics:  { bg: "rgba(139,92,246,0.12)",  text: "#a78bfa" },
+  Elections: { bg: "rgba(139,92,246,0.12)",  text: "#a78bfa" },
+  Culture:   { bg: "rgba(236,72,153,0.12)",  text: "#f472b6" },
+  Tech:      { bg: "rgba(251,146,60,0.12)",  text: "#fb923c" },
+  AI:        { bg: "rgba(6,182,212,0.12)",   text: "#22d3ee" },
+};
+
+const categoryIcons: Record<string, string> = {
+  Sports:    "🏀",
+  Crypto:    "₿",
+  Politics:  "🗳️",
+  Elections: "🗳️",
+  Culture:   "🎭",
+  Tech:      "🚀",
+  AI:        "🤖",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -60,8 +63,13 @@ function formatVolume(v: number): string {
 
 function eventBadge(tag?: string): string {
   const map: Record<string, string> = {
-    Sports: "🏀 LIVE", Finance: "💰 LIVE", Crypto: "₿ LIVE",
-    Politics: "🗳️ LIVE", Tech: "🚀 LIVE", Culture: "🎭 LIVE",
+    Sports:    "🏀 LIVE",
+    Crypto:    "₿ LIVE",
+    Politics:  "🗳️ LIVE",
+    Elections: "🗳️ LIVE",
+    Tech:      "🚀 LIVE",
+    Culture:   "🎭 LIVE",
+    AI:        "🤖 LIVE",
   };
   return map[tag ?? ""] ?? "⚡ LIVE";
 }
@@ -85,7 +93,7 @@ function ArrowDown() {
 
 // ─── Shared card wrapper ──────────────────────────────────────────────────────
 
-function Card({ children }: { children: React.ReactNode }) {
+function Card({ children }: { children: ReactNode }) {
   return (
     <div
       className="rounded-2xl border border-white/[0.07] px-4 py-4"
@@ -96,7 +104,7 @@ function Card({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CardHeader({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
+function CardHeader({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center gap-1.5">{children}</div>
@@ -105,21 +113,21 @@ function CardHeader({ children, action }: { children: React.ReactNode; action?: 
   );
 }
 
-function SeeAllBtn() {
+function SeeAllLink({ href }: { href: string }) {
   return (
-    <button className="text-[11px] text-gray-600 hover:text-gray-400 transition-colors">
+    <Link href={href} className="text-[11px] text-gray-600 hover:text-gray-400 transition-colors">
       All →
-    </button>
+    </Link>
   );
 }
 
-// ─── Card 1: Breaking (live from API) ────────────────────────────────────────
+// ─── Card 1: Breaking (live from API, sort=movers) ───────────────────────────
 
 export function BreakingCard({ markets }: { markets: ApiMarket[] }) {
   const items = markets.slice(0, 3);
   return (
     <Card>
-      <CardHeader action={<SeeAllBtn />}>
+      <CardHeader action={<SeeAllLink href="/?sort=movers" />}>
         <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
         <span className="text-[12px] font-semibold text-gray-200 tracking-wide">Breaking</span>
       </CardHeader>
@@ -144,36 +152,47 @@ export function BreakingCard({ markets }: { markets: ApiMarket[] }) {
   );
 }
 
-// ─── Card 2: Hot Topics (hardcoded — no aggregation endpoint) ─────────────────
+// ─── Card 2: Hot Topics (real from /api/categories/volume) ───────────────────
 
-export function HotTopicsCard() {
+export function HotTopicsCard({ categories }: { categories: CategoryItem[] }) {
+  const items = categories.slice(0, 5);
   return (
     <Card>
-      <CardHeader action={<SeeAllBtn />}>
+      <CardHeader>
         <span style={{ fontSize: 13 }}>🔥</span>
         <span className="text-[12px] font-semibold text-gray-200 tracking-wide">Hot Topics</span>
       </CardHeader>
 
-      <div className="divide-y divide-white/[0.04]">
-        {HOT_TOPICS.map((topic) => {
-          const cat = categoryColors[topic.category] ?? { bg: "rgba(255,255,255,0.06)", text: "#9ca3af" };
-          return (
-            <div key={topic.rank} className="flex items-center gap-2.5 py-2.5 group cursor-pointer">
-              <span className="text-[10px] text-gray-700 w-3 shrink-0 font-medium tabular-nums">{topic.rank}</span>
-              <span className="flex-1 text-[12px] font-semibold text-gray-300 group-hover:text-white transition-colors">
-                {topic.label}
-              </span>
-              <span
-                className="text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0"
-                style={{ background: cat.bg, color: cat.text }}
+      {items.length === 0 ? (
+        <p className="text-[11px] text-gray-700 py-3 text-center">No data available</p>
+      ) : (
+        <div className="divide-y divide-white/[0.04]">
+          {items.map((cat, i) => {
+            const colors = categoryColors[cat.tag] ?? { bg: "rgba(255,255,255,0.06)", text: "#9ca3af" };
+            return (
+              <Link
+                key={cat.tag}
+                href={`/?category=${cat.tag}`}
+                className="flex items-center gap-2.5 py-2.5 group cursor-pointer"
               >
-                {topic.category}
-              </span>
-              <span className="text-[11px] text-gray-600 shrink-0 tabular-nums">{topic.volume}</span>
-            </div>
-          );
-        })}
-      </div>
+                <span className="text-[10px] text-gray-700 w-3 shrink-0 font-medium tabular-nums">{i + 1}</span>
+                <span className="flex-1 text-[12px] font-semibold text-gray-300 group-hover:text-white transition-colors">
+                  {cat.tag}
+                </span>
+                <span
+                  className="text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0"
+                  style={{ background: colors.bg, color: colors.text }}
+                >
+                  {cat.tag}
+                </span>
+                <span className="text-[11px] text-gray-600 shrink-0 tabular-nums">
+                  {formatVolume(cat.volume)}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }
@@ -184,7 +203,7 @@ export function LiveEventsCard({ events }: { events: ApiEvent[] }) {
   const items = events.slice(0, 3);
   return (
     <Card>
-      <CardHeader action={<SeeAllBtn />}>
+      <CardHeader>
         <span
           className="text-[9px] font-bold px-1.5 py-0.5 rounded"
           style={{ background: "rgba(239,68,68,0.2)", color: "#f87171", letterSpacing: "0.05em" }}
@@ -229,7 +248,7 @@ export function TrendingMarketsCard({ markets }: { markets: ApiMarket[] }) {
   const items = markets.slice(0, 4);
   return (
     <Card>
-      <CardHeader action={<SeeAllBtn />}>
+      <CardHeader action={<SeeAllLink href="/?sort=volume" />}>
         <span style={{ fontSize: 13 }}>📈</span>
         <span className="text-[12px] font-semibold text-gray-200 tracking-wide">Trending</span>
       </CardHeader>
@@ -269,9 +288,9 @@ export function TrendingMarketsCard({ markets }: { markets: ApiMarket[] }) {
   );
 }
 
-// ─── Card 5: Top Categories (hardcoded — no categories endpoint) ───────────────
+// ─── Card 5: Top Categories (real from /api/categories/volume) ────────────────
 
-export function TopCategoriesCard() {
+export function TopCategoriesCard({ categories }: { categories: CategoryItem[] }) {
   return (
     <Card>
       <CardHeader>
@@ -279,36 +298,45 @@ export function TopCategoriesCard() {
         <span className="text-[12px] font-semibold text-gray-200 tracking-wide">Top Categories</span>
       </CardHeader>
 
-      <div className="grid grid-cols-2 gap-2">
-        {TOP_CATEGORIES.map((cat) => (
-          <button
-            key={cat.label}
-            className="flex flex-col items-start px-3 py-2.5 rounded-xl border border-white/[0.05] hover:border-white/10 transition-all text-left group"
-            style={{ background: cat.color }}
-          >
-            <span className="text-lg leading-none mb-1.5">{cat.icon}</span>
-            <span className="text-[12px] font-bold" style={{ color: cat.accent }}>
-              {cat.label}
-            </span>
-            <span className="text-[10px] text-gray-600 mt-0.5">{cat.markets} markets</span>
-            <span className="text-[10px] font-semibold text-gray-500 mt-0.5">{cat.volume} vol</span>
-          </button>
-        ))}
-      </div>
+      {categories.length === 0 ? (
+        <p className="text-[11px] text-gray-700 py-3 text-center">No data available</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          {categories.map((cat) => {
+            const colors = categoryColors[cat.tag] ?? { bg: "rgba(255,255,255,0.06)", text: "#9ca3af" };
+            const icon = categoryIcons[cat.tag] ?? "⚡";
+            return (
+              <Link
+                key={cat.tag}
+                href={`/?category=${cat.tag}`}
+                className="flex flex-col items-start px-3 py-2.5 rounded-xl border border-white/[0.05] hover:border-white/10 transition-all text-left group"
+                style={{ background: colors.bg }}
+              >
+                <span className="text-lg leading-none mb-1.5">{icon}</span>
+                <span className="text-[12px] font-bold" style={{ color: colors.text }}>
+                  {cat.tag}
+                </span>
+                <span className="text-[10px] text-gray-600 mt-0.5">{cat.marketCount} markets</span>
+                <span className="text-[10px] font-semibold text-gray-500 mt-0.5">{formatVolume(cat.volume)} vol</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }
 
 // ─── Default export: all cards stacked ───────────────────────────────────────
 
-export default function HomeSidebar({ markets, events }: Props) {
+export default function HomeSidebar({ markets, events, categories, breakingMarkets }: Props) {
   return (
     <div className="flex flex-col gap-4" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      <BreakingCard markets={markets} />
-      <HotTopicsCard />
+      <BreakingCard markets={breakingMarkets} />
+      <HotTopicsCard categories={categories} />
       <LiveEventsCard events={events} />
       <TrendingMarketsCard markets={markets} />
-      <TopCategoriesCard />
+      <TopCategoriesCard categories={categories} />
     </div>
   );
 }
