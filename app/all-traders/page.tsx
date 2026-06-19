@@ -1,7 +1,7 @@
 import TradersPageClient from "@/src/components/TradesPageClient";
 import type { TraderProfile } from "@/types/Traderprofile";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 interface ApiTraderListItem {
   slug: string;
@@ -50,6 +50,7 @@ function mapTrader(api: ApiTraderListItem): TraderProfile {
     followers:        api.followers,
     following:        0,
     totalPnl:         formatPnl(api.totalPnl),
+    totalPnlRaw:      api.totalPnl,
     totalPnlPercent:  Math.round(api.totalPnlPercent),
     winRate:          Math.round(api.winRate),
     totalTrades:      api.totalTrades,
@@ -58,6 +59,7 @@ function mapTrader(api: ApiTraderListItem): TraderProfile {
     bestTradePercent: 0,
     streak:           api.streak,
     volumeTraded:     formatVolume(api.volumeTraded),
+    volumeTradedRaw:  api.volumeTraded,
     isVerified:       api.isVerified,
     tier:             api.tier,
   };

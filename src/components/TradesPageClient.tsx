@@ -53,10 +53,6 @@ type ViewMode = "grid" | "list";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function pnlToNumber(pnl: string) {
-  return parseFloat(pnl.replace(/[+$,K]/g, "")) * (pnl.startsWith("-") ? -1 : 1);
-}
-
 function TrendUp() {
   return (
     <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
@@ -458,7 +454,7 @@ export default function TradersPageClient({ traders }: Props) {
     }
 
     list.sort((a, b) => {
-      if (sortBy === "pnl")         return pnlToNumber(b.totalPnl) - pnlToNumber(a.totalPnl);
+      if (sortBy === "pnl")         return b.totalPnlRaw - a.totalPnlRaw;
       if (sortBy === "winRate")     return b.winRate - a.winRate;
       if (sortBy === "totalTrades") return b.totalTrades - a.totalTrades;
       if (sortBy === "followers")   return b.followers - a.followers;
@@ -474,7 +470,7 @@ export default function TradersPageClient({ traders }: Props) {
   const rankOffset = (pageSafe - 1) * PAGE_SIZE;
 
   const topTrader = traders.reduce((best, t) =>
-    pnlToNumber(t.totalPnl) > pnlToNumber(best.totalPnl) ? t : best
+    t.totalPnlRaw > best.totalPnlRaw ? t : best
   );
 
   return (

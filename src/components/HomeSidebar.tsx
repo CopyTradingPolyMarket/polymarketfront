@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 // ─── API shapes ───────────────────────────────────────────────────────────────
 
 interface ApiMarket {
+  slug: string;
   title: string;
   volume: number;
   options: { label: string; probability: number }[];
@@ -136,7 +137,7 @@ export function BreakingCard({ markets }: { markets: ApiMarket[] }) {
         {items.map((item, i) => {
           const yes = item.options[0]?.probability ?? 0;
           return (
-            <div key={i} className="flex items-start gap-2.5 py-3 group cursor-pointer">
+            <Link key={item.slug} href={`/markets/${item.slug}`} className="flex items-start gap-2.5 py-3 group cursor-pointer">
               <span className="text-[10px] text-gray-700 w-3 shrink-0 pt-0.5 font-medium tabular-nums">{i + 1}</span>
               <p className="flex-1 text-[12px] text-gray-400 leading-snug group-hover:text-gray-200 transition-colors line-clamp-2 min-w-0">
                 {item.title}
@@ -144,7 +145,7 @@ export function BreakingCard({ markets }: { markets: ApiMarket[] }) {
               <div className="shrink-0 text-right ml-1">
                 <div className="text-[13px] font-bold text-white tabular-nums">{yes}%</div>
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>
@@ -254,12 +255,12 @@ export function TrendingMarketsCard({ markets }: { markets: ApiMarket[] }) {
       </CardHeader>
 
       <div className="divide-y divide-white/[0.04]">
-        {items.map((m, i) => {
+        {items.map((m) => {
           const category = m.tags[0] ?? "General";
           const yes = m.options[0]?.probability ?? 0;
           const cat = categoryColors[category] ?? { bg: "rgba(255,255,255,0.06)", text: "#9ca3af" };
           return (
-            <div key={i} className="py-2.5 group cursor-pointer">
+            <Link key={m.slug} href={`/markets/${m.slug}`} className="block py-2.5 group cursor-pointer">
               <div className="flex items-start gap-2">
                 <p className="flex-1 text-[12px] text-gray-400 group-hover:text-gray-200 transition-colors leading-snug line-clamp-1 min-w-0">
                   {m.title}
@@ -280,7 +281,7 @@ export function TrendingMarketsCard({ markets }: { markets: ApiMarket[] }) {
                 </div>
                 <span className="text-[10px] font-semibold text-white tabular-nums">{yes}%</span>
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>

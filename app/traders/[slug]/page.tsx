@@ -3,7 +3,7 @@ import TraderProfileClient from "@/src/components/TraderProfileClient";
 import SuggestedTradersSidebar from "@/src/components/SuggestedTradersSidebar";
 import type { TraderProfile, TraderTrade, EarningsPoint, SuggestedTrader } from "@/types/Traderprofile";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 // ─── API response shapes ───────────────────────────────────────────────────────
 
@@ -113,6 +113,7 @@ function mapProfile(api: ApiProfile): TraderProfile {
     followers:        api.followers,
     following:        api.following,
     totalPnl:         formatPnl(api.totalPnl),
+    totalPnlRaw:      api.totalPnl,
     totalPnlPercent:  Math.round(api.totalPnlPercent),
     winRate:          Math.round(api.winRate),
     totalTrades:      api.totalTrades,
@@ -121,6 +122,7 @@ function mapProfile(api: ApiProfile): TraderProfile {
     bestTradePercent: Math.round(api.bestTradePercent),
     streak:           api.streak,
     volumeTraded:     formatVolume(api.volumeTraded),
+    volumeTradedRaw:  api.volumeTraded,
     isVerified:       api.isVerified,
     tier:             api.tier,
   };
