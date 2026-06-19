@@ -6,9 +6,7 @@ import {
   AreaChart, Area, XAxis, YAxis,
   Tooltip, ResponsiveContainer,
 } from "recharts";
-import { MOCK_MARKETS } from "@/lib/markets";
 import { Market } from "@/types/market";
-import { slugify } from "@/lib/slugify";
 import CandlestickChart from "@/src/components/CandlestickChart";
 import type { OhlcPoint } from "@/src/components/CandlestickChart";
 
@@ -42,6 +40,14 @@ interface ApiChartPoint {
 }
 
 type ChartShape = "line" | "candlestick";
+
+interface RelatedMarket {
+  slug: string;
+  title: string;
+  image: string | null;
+  options: { label: string; probability: number }[];
+}
+
 type ApiRange = "1h" | "6h" | "1d" | "1w" | "1m" | "all";
 
 const RANGE_MAP: Record<Range, ApiRange> = {
@@ -319,7 +325,7 @@ function MobileBetSheet({
 
 // ─── Desktop Bet Panel ────────────────────────────────────────────────────────
 
-function DesktopBetPanel({ market, activeOption, setActiveOption, betType, setBetType, amount, setAmount, estimatedShares, potentialProfit, prob, router }: any) {
+function DesktopBetPanel({ market, activeOption, setActiveOption, betType, setBetType, amount, setAmount, estimatedShares, potentialProfit, prob, router, relatedMarkets }: any) {
   const activeOpt = market.options[activeOption];
   const isYes = betType === "yes";
 
@@ -417,21 +423,23 @@ function DesktopBetPanel({ market, activeOption, setActiveOption, betType, setBe
         </div>
       </div>
 
-      {/* Related markets — still mock per spec */}
-      <div style={{ marginTop: 16, background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: 16 }}>
-        <p style={{ fontSize: 12, color: "#6b7280", fontWeight: 600, marginBottom: 12 }}>Related markets</p>
-        {MOCK_MARKETS.filter((m: Market) => m.id !== market.id).slice(0, 3).map((m: Market, i: number) => (
-          <button key={m.id} onClick={() => router.push(`/markets/${slugify(m.title)}`)}
-            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 0", background: "none", border: "none", borderBottom: i < 2 ? "1px solid rgba(255,255,255,0.04)" : "none", cursor: "pointer", textAlign: "left" }}
-          >
-            <img src={m.image} alt={m.title} style={{ width: 30, height: 30, borderRadius: 8, objectFit: "cover", background: "#1a1a1e", flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 12, color: "#d1d5db", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>{m.title}</p>
-              <p style={{ fontSize: 11, color: "#34d399", fontWeight: 600, margin: "2px 0 0" }}>{m.options[0].probability}% Yes</p>
-            </div>
-          </button>
-        ))}
-      </div>
+      {relatedMarkets.length > 0 && (
+        <div style={{ marginTop: 16, background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: 16 }}>
+          <p style={{ fontSize: 12, color: "#6b7280", fontWeight: 600, marginBottom: 12 }}>Related markets</p>
+          {relatedMarkets.map((m: RelatedMarket, i: number) => (
+            <button key={m.slug} onClick={() => router.push(`/markets/${m.slug}`)}
+              style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 0", background: "none", border: "none", borderBottom: i < relatedMarkets.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none", cursor: "pointer", textAlign: "left" }}
+            >
+              {m.image && <img src={m.image} alt={m.title} style={{ width: 30, height: 30, borderRadius: 8, objectFit: "cover", background: "#1a1a1e", flexShrink: 0 }} />}
+              {!m.image && <div style={{ width: 30, height: 30, borderRadius: 8, background: "#1a1a1e", flexShrink: 0 }} />}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 12, color: "#d1d5db", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>{m.title}</p>
+                <p style={{ fontSize: 11, color: "#34d399", fontWeight: 600, margin: "2px 0 0" }}>{m.options[0]?.probability ?? 0}% Yes</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -455,11 +463,13 @@ export default function MarketPage() {
   const [chartLoading, setChartLoading] = useState(false);
   const [betType,      setBetType]      = useState<"yes" | "no">("yes");
   const [amount,       setAmount]       = useState("");
-  const [livePrices,   setLivePrices]   = useState<{ yes: number; no: number } | null>(null);
-  const [isLocked,     setIsLocked]     = useState(false);
-  const [wsResolved,   setWsResolved]   = useState<number | null>(null);
-  const [spotData,     setSpotData]     = useState<{ date: string; value: number }[]>([]);
-  const [spotLoading,  setSpotLoading]  = useState(false);
+  const [livePrices,     setLivePrices]     = useState<{ yes: number; no: number } | null>(null);
+  const [isLocked,       setIsLocked]       = useState(false);
+  const [wsResolved,     setWsResolved]     = useState<number | null>(null);
+  const [spotData,       setSpotData]       = useState<{ date: string; value: number }[]>([]);
+  const [spotLoading,    setSpotLoading]    = useState(false);
+  const [marketTags,     setMarketTags]     = useState<string[]>([]);
+  const [relatedMarkets, setRelatedMarkets] = useState<RelatedMarket[]>([]);
   const rangeRef = useRef<Range>(range);
   rangeRef.current = range;
 
@@ -474,7 +484,12 @@ export default function MarketPage() {
         if (!r.ok) throw new Error();
         return r.json() as Promise<ApiMarketDetail>;
       })
-      .then((data) => { if (data) setMarket(mapMarket(data)); })
+      .then((data) => {
+        if (data) {
+          setMarket(mapMarket(data));
+          setMarketTags(data.tags ?? []);
+        }
+      })
       .catch(() => setLoadError(true));
   }, [slug]);
 
@@ -508,6 +523,18 @@ export default function MarketPage() {
       .catch(() => { setChartData([]); setOhlcData([]); })
       .finally(() => setChartLoading(false));
   }, [market, range]);
+
+  // Fetch top trending markets from the same category, exclude current slug
+  useEffect(() => {
+    if (marketTags.length === 0) return;
+    const tag = marketTags[0];
+    fetch(`${API_BASE}/api/markets?category=${encodeURIComponent(tag)}&sort=volume&limit=4&includeResolved=false`)
+      .then((r) => r.ok ? r.json() : { items: [] })
+      .then((data: { items: RelatedMarket[] }) => {
+        setRelatedMarkets((data.items ?? []).filter((m) => m.slug !== slug).slice(0, 3));
+      })
+      .catch(() => setRelatedMarkets([]));
+  }, [marketTags, slug]);
 
   // Live price WebSocket — subscribes once the market loads, reconnects on drop
   useEffect(() => {
@@ -978,17 +1005,18 @@ export default function MarketPage() {
             ))}
           </div>
 
-          {/* Related markets — mobile only, still mock */}
-          {isMobile && (
+          {/* Related markets — mobile only */}
+          {isMobile && relatedMarkets.length > 0 && (
             <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: 16 }}>
               <p style={{ fontSize: 12, color: "#6b7280", fontWeight: 600, marginBottom: 12 }}>Related markets</p>
-              {MOCK_MARKETS.filter((m: Market) => m.id !== market.id).slice(0, 3).map((m: Market, i: number) => (
-                <button key={m.id} onClick={() => router.push(`/markets/${slugify(m.title)}`)}
-                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 0", background: "none", border: "none", borderBottom: i < 2 ? "1px solid rgba(255,255,255,0.04)" : "none", cursor: "pointer", textAlign: "left" }}>
-                  <img src={m.image} alt={m.title} style={{ width: 30, height: 30, borderRadius: 8, objectFit: "cover", background: "#1a1a1e", flexShrink: 0 }} />
+              {relatedMarkets.map((m: RelatedMarket, i: number) => (
+                <button key={m.slug} onClick={() => router.push(`/markets/${m.slug}`)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 0", background: "none", border: "none", borderBottom: i < relatedMarkets.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none", cursor: "pointer", textAlign: "left" }}>
+                  {m.image && <img src={m.image} alt={m.title} style={{ width: 30, height: 30, borderRadius: 8, objectFit: "cover", background: "#1a1a1e", flexShrink: 0 }} />}
+                  {!m.image && <div style={{ width: 30, height: 30, borderRadius: 8, background: "#1a1a1e", flexShrink: 0 }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 12, color: "#d1d5db", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>{m.title}</p>
-                    <p style={{ fontSize: 11, color: "#34d399", fontWeight: 600, margin: "2px 0 0" }}>{m.options[0].probability}% Yes</p>
+                    <p style={{ fontSize: 11, color: "#34d399", fontWeight: 600, margin: "2px 0 0" }}>{m.options[0]?.probability ?? 0}% Yes</p>
                   </div>
                 </button>
               ))}
@@ -997,7 +1025,7 @@ export default function MarketPage() {
         </div>
 
         {/* RIGHT — desktop only */}
-        {!isMobile && <DesktopBetPanel {...sharedPanelProps} />}
+        {!isMobile && <DesktopBetPanel {...sharedPanelProps} relatedMarkets={relatedMarkets} />}
       </div>
 
       {/* Mobile bottom sheet */}
