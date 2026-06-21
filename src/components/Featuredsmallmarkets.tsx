@@ -220,7 +220,12 @@ export default function MarketsList() {
     if (urlSearch)   params.set("search",   urlSearch);
 
     let cancelled = false;
-    fetch(`${API_BASE}/api/markets?${params}`)
+    const isLiveCrypto = urlCategory === "Live Crypto";
+    const fetchUrl = isLiveCrypto
+      ? `${API_BASE}/api/markets/live-crypto?page=${pageToFetch}&limit=20`
+      : `${API_BASE}/api/markets?${params}`;
+
+    fetch(fetchUrl)
       .then((r) => {
         if (!r.ok) throw new Error();
         return r.json() as Promise<ApiResponse>;
@@ -273,10 +278,16 @@ export default function MarketsList() {
         <div className="flex items-center justify-center py-16 text-center">
           <div>
             <p className="text-gray-400 text-sm">
-              {urlSearch ? "No markets found for your search." : "No markets in this category."}
+              {urlCategory === "Live Crypto"
+                ? "No live crypto markets right now."
+                : urlSearch
+                ? "No markets found for your search."
+                : "No markets in this category."}
             </p>
             <p className="text-gray-600 text-xs mt-1">
-              {urlSearch
+              {urlCategory === "Live Crypto"
+                ? "5-min and daily up/down markets appear here when they’re actively trading."
+                : urlSearch
                 ? "Try different keywords or browse by category."
                 : "Check back soon or try a different filter."}
             </p>
