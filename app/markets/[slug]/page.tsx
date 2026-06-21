@@ -454,7 +454,6 @@ export default function MarketPage() {
   const [isLocked,       setIsLocked]       = useState(false);
   const [wsResolved,     setWsResolved]     = useState<number | null>(null);
   const [spotData,       setSpotData]       = useState<{ date: string; value: number }[]>([]);
-  const [spotRawTicks,   setSpotRawTicks]   = useState<Array<{ t: number; value: number }>>([]);
   const [spotLoading,    setSpotLoading]    = useState(false);
   const [livePriceHistory, setLivePriceHistory] = useState<Array<{ date: string; probability: number }>>([]);
   const [marketTags,     setMarketTags]     = useState<string[]>([]);
@@ -634,9 +633,8 @@ export default function MarketPage() {
             value: pt.value,
           }))
         );
-        setSpotRawTicks(filtered.map((pt) => ({ t: pt.t, value: pt.value })));
       })
-      .catch(() => { setSpotData([]); setSpotRawTicks([]); })
+      .catch(() => setSpotData([]))
       .finally(() => setSpotLoading(false));
   }, [spotSymbol]);
 
@@ -664,12 +662,6 @@ export default function MarketPage() {
             const value = msg.value as number;
             setSpotData((prev) => {
               const next = [...prev, { date, value }];
-              if (next.length > 200) next.splice(0, next.length - 200);
-              return next;
-            });
-            setSpotRawTicks((prev) => {
-              const cutoff = Date.now() - SPOT_WINDOW_MS;
-              const next = [...prev.filter((p) => p.t >= cutoff), { t, value }];
               if (next.length > 200) next.splice(0, next.length - 200);
               return next;
             });
@@ -710,27 +702,6 @@ export default function MarketPage() {
         : opt.probability,
     }));
   }, [market, livePrices]);
-
-  // Aggregate spot raw ticks into 2-second OHLC candles for the candlestick chart
-  const spotCandles = useMemo((): OhlcPoint[] => {
-    if (spotRawTicks.length === 0) return [];
-    const BUCKET_MS = 2000;
-    const buckets = new Map<number, { o: number; h: number; l: number; c: number }>();
-    for (const tick of spotRawTicks) {
-      const key = Math.floor(tick.t / BUCKET_MS) * BUCKET_MS;
-      const b = buckets.get(key);
-      if (!b) {
-        buckets.set(key, { o: tick.value, h: tick.value, l: tick.value, c: tick.value });
-      } else {
-        if (tick.value > b.h) b.h = tick.value;
-        if (tick.value < b.l) b.l = tick.value;
-        b.c = tick.value;
-      }
-    }
-    return [...buckets.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([t, b]) => ({ t: new Date(t).toISOString(), o: b.o, h: b.h, l: b.l, c: b.c }));
-  }, [spotRawTicks]);
 
   // ── Early returns ──
 
@@ -874,7 +845,7 @@ export default function MarketPage() {
             })}
           </div>
 
-          {/* Spot chart — candlestick for live-crypto, hidden for standard */}
+          {/* Spot chart — line/area for live-crypto, hidden for standard */}
           {market.isLiveCrypto && spotSymbol && (
             <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: isMobile ? "16px 14px 10px" : "20px 20px 12px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -908,12 +879,33 @@ export default function MarketPage() {
                   </div>
                 )}
                 <div style={{ opacity: spotLoading ? 0.3 : 1, transition: "opacity 0.2s" }}>
-                  {spotCandles.length === 0 && !spotLoading ? (
+                  {spotData.length === 0 && !spotLoading ? (
                     <div style={{ height: isMobile ? 160 : 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <p style={{ fontSize: 12, color: "#4b5563" }}>Waiting for spot price data...</p>
                     </div>
                   ) : (
-                    <CandlestickChart points={spotCandles} height={isMobile ? 160 : 220} isMobile={isMobile} />
+                    <ResponsiveContainer width="100%" height={isMobile ? 160 : 220}>
+                      <AreaChart data={spotData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="spotGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%"   stopColor="#34d399" stopOpacity={0.18} />
+                            <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="date" tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(spotData.length / (isMobile ? 3 : 5)))} />
+                        <YAxis domain={["auto", "auto"]} tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
+                        <Tooltip content={({ active, payload, label }: any) => {
+                          if (!active || !payload?.length) return null;
+                          return (
+                            <div style={{ background: "rgba(10,10,13,0.97)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: 10, padding: "8px 14px", backdropFilter: "blur(12px)" }}>
+                              <p style={{ color: "#6b7280", fontSize: 10, marginBottom: 2 }}>{label}</p>
+                              <p style={{ color: "#34d399", fontWeight: 700, fontSize: 15 }}>${Number(payload[0].value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                            </div>
+                          );
+                        }} />
+                        <Area type="monotone" dataKey="value" stroke="#34d399" strokeWidth={2} fill="url(#spotGrad)" dot={false} activeDot={{ r: 3, strokeWidth: 0 }} />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   )}
                 </div>
               </div>
