@@ -138,22 +138,6 @@ function CustomTooltip({ active, payload, label, trendUp }: any) {
   );
 }
 
-function SpotTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{
-      background: "rgba(10,10,13,0.97)",
-      border: "1px solid rgba(52,211,153,0.2)",
-      borderRadius: 10,
-      padding: "8px 14px",
-      backdropFilter: "blur(12px)",
-    }}>
-      <p style={{ color: "#6b7280", fontSize: 10, marginBottom: 2 }}>{label}</p>
-      <p style={{ color: "#34d399", fontWeight: 700, fontSize: 15 }}>${Number(payload[0].value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-    </div>
-  );
-}
-
 const RANGES = ["1H", "6H", "1D", "1W", "1M", "ALL"] as const;
 type Range = (typeof RANGES)[number];
 
@@ -470,7 +454,9 @@ export default function MarketPage() {
   const [isLocked,       setIsLocked]       = useState(false);
   const [wsResolved,     setWsResolved]     = useState<number | null>(null);
   const [spotData,       setSpotData]       = useState<{ date: string; value: number }[]>([]);
+  const [spotRawTicks,   setSpotRawTicks]   = useState<Array<{ t: number; value: number }>>([]);
   const [spotLoading,    setSpotLoading]    = useState(false);
+  const [livePriceHistory, setLivePriceHistory] = useState<Array<{ date: string; probability: number }>>([]);
   const [marketTags,     setMarketTags]     = useState<string[]>([]);
   const [relatedMarkets, setRelatedMarkets] = useState<RelatedMarket[]>([]);
   const rangeRef = useRef<Range>(range);
@@ -563,6 +549,14 @@ export default function MarketPage() {
           const msg = JSON.parse(ev.data as string);
           if (msg.type === 'price_update') {
             setLivePrices({ yes: msg.yes, no: msg.no });
+            if (market?.isLiveCrypto) {
+              const date = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+              setLivePriceHistory((prev) => {
+                const next = [...prev, { date, probability: msg.yes as number }];
+                if (next.length > 300) next.splice(0, next.length - 300);
+                return next;
+              });
+            }
           } else if (msg.type === 'market_resolved') {
             setWsResolved(msg.outcome ?? null);
           } else if (msg.type === 'market_locked') {
@@ -633,16 +627,16 @@ export default function MarketPage() {
       .then((r) => r.ok ? r.json() : { points: [] })
       .then((data: { points: { t: number; value: number }[] }) => {
         const now = Date.now();
+        const filtered = (data.points ?? []).filter((pt) => pt.t >= now - SPOT_WINDOW_MS);
         setSpotData(
-          (data.points ?? [])
-            .filter((pt) => pt.t >= now - SPOT_WINDOW_MS)
-            .map((pt) => ({
-              date: new Date(pt.t).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }),
-              value: pt.value,
-            }))
+          filtered.map((pt) => ({
+            date: new Date(pt.t).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }),
+            value: pt.value,
+          }))
         );
+        setSpotRawTicks(filtered.map((pt) => ({ t: pt.t, value: pt.value })));
       })
-      .catch(() => setSpotData([]))
+      .catch(() => { setSpotData([]); setSpotRawTicks([]); })
       .finally(() => setSpotLoading(false));
   }, [spotSymbol]);
 
@@ -667,13 +661,15 @@ export default function MarketPage() {
           if (msg.type === 'spot_update' && msg.symbol === spotSymbol) {
             const t = msg.priceTs ? Date.parse(msg.priceTs) : Date.now();
             const date = new Date(t).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+            const value = msg.value as number;
             setSpotData((prev) => {
+              const next = [...prev, { date, value }];
+              if (next.length > 200) next.splice(0, next.length - 200);
+              return next;
+            });
+            setSpotRawTicks((prev) => {
               const cutoff = Date.now() - SPOT_WINDOW_MS;
-              const filtered = prev.filter((_, i) => {
-                const ptDate = prev[i];
-                return ptDate !== undefined;
-              });
-              const next = [...filtered, { date, value: msg.value as number }];
+              const next = [...prev.filter((p) => p.t >= cutoff), { t, value }];
               if (next.length > 200) next.splice(0, next.length - 200);
               return next;
             });
@@ -738,6 +734,33 @@ export default function MarketPage() {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
+
+  // Aggregate spot raw ticks into 2-second OHLC candles for the candlestick chart
+  const spotCandles = useMemo((): OhlcPoint[] => {
+    if (spotRawTicks.length === 0) return [];
+    const BUCKET_MS = 2000;
+    const buckets = new Map<number, { o: number; h: number; l: number; c: number }>();
+    for (const tick of spotRawTicks) {
+      const key = Math.floor(tick.t / BUCKET_MS) * BUCKET_MS;
+      const b = buckets.get(key);
+      if (!b) {
+        buckets.set(key, { o: tick.value, h: tick.value, l: tick.value, c: tick.value });
+      } else {
+        if (tick.value > b.h) b.h = tick.value;
+        if (tick.value < b.l) b.l = tick.value;
+        b.c = tick.value;
+      }
+    }
+    return [...buckets.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([t, b]) => ({ t: new Date(t).toISOString(), o: b.o, h: b.h, l: b.l, c: b.c }));
+  }, [spotRawTicks]);
+
+  // Live YES trend for live-crypto
+  const liveTrend = livePriceHistory.length > 1
+    ? livePriceHistory[livePriceHistory.length - 1].probability - livePriceHistory[0].probability
+    : 0;
+  const liveTrendUp = liveTrend >= 0;
 
   const effectiveMarket = liveOptions ? { ...market, options: liveOptions } : market;
   const activeOpt       = effectiveMarket.options[activeOption];
@@ -851,7 +874,7 @@ export default function MarketPage() {
             })}
           </div>
 
-          {/* Spot chart — primary chart for live-crypto markets */}
+          {/* Spot chart — candlestick for live-crypto, hidden for standard */}
           {market.isLiveCrypto && spotSymbol && (
             <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: isMobile ? "16px 14px 10px" : "20px 20px 12px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -861,9 +884,20 @@ export default function MarketPage() {
                   </span>
                   <span style={{ fontSize: 11, color: "#6b7280", marginLeft: 8 }}>live · 30s</span>
                   {spotData.length > 0 && (
-                    <span style={{ fontSize: 16, fontWeight: 800, color: "#fff", marginLeft: 12 }}>
-                      ${spotData[spotData.length - 1].value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
+                    <>
+                      <span style={{ fontSize: 16, fontWeight: 800, color: "#fff", marginLeft: 12 }}>
+                        ${spotData[spotData.length - 1].value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                      {spotData.length > 1 && (() => {
+                        const pctChange = ((spotData[spotData.length - 1].value - spotData[0].value) / spotData[0].value) * 100;
+                        const up = pctChange >= 0;
+                        return (
+                          <span style={{ fontSize: 12, fontWeight: 600, color: up ? "#34d399" : "#f87171", marginLeft: 8 }}>
+                            {up ? "▲" : "▼"} {Math.abs(pctChange).toFixed(3)}%
+                          </span>
+                        );
+                      })()}
+                    </>
                   )}
                 </div>
               </div>
@@ -874,23 +908,115 @@ export default function MarketPage() {
                   </div>
                 )}
                 <div style={{ opacity: spotLoading ? 0.3 : 1, transition: "opacity 0.2s" }}>
-                  {spotData.length === 0 && !spotLoading ? (
-                    <div style={{ height: isMobile ? 120 : 160, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {spotCandles.length === 0 && !spotLoading ? (
+                    <div style={{ height: isMobile ? 160 : 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <p style={{ fontSize: 12, color: "#4b5563" }}>Waiting for spot price data...</p>
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={isMobile ? 120 : 160}>
-                      <AreaChart data={spotData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                    <CandlestickChart points={spotCandles} height={isMobile ? 160 : 220} isMobile={isMobile} />
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Market price chart */}
+          {market.isLiveCrypto ? (
+            /* Live-crypto: simple live YES line chart — no range buttons, no history fetch */
+            <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: isMobile ? "16px 14px 10px" : "20px 20px 12px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: isMobile ? 36 : 44, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>{prob}%</span>
+                    {livePriceHistory.length > 1 && (
+                      <span style={{ fontSize: 13, fontWeight: 600, color: liveTrendUp ? "#34d399" : "#f87171" }}>
+                        {liveTrendUp ? "▲" : "▼"} {Math.abs(liveTrend).toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                    chance of <strong style={{ color: "#9ca3af" }}>{activeOpt.label}</strong> · live
+                  </p>
+                </div>
+              </div>
+              <div>
+                {livePriceHistory.length === 0 ? (
+                  <div style={{ height: isMobile ? 120 : 160, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <p style={{ fontSize: 12, color: "#4b5563" }}>Waiting for live price updates...</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={isMobile ? 120 : 160}>
+                    <AreaChart data={livePriceHistory} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="liveGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%"   stopColor={liveTrendUp ? "#10b981" : "#ef4444"} stopOpacity={0.22} />
+                          <stop offset="100%" stopColor={liveTrendUp ? "#10b981" : "#ef4444"} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="date" tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(livePriceHistory.length / (isMobile ? 3 : 5)))} />
+                      <YAxis domain={[0, 100]} tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
+                      <Tooltip content={(p) => <CustomTooltip {...p} trendUp={liveTrendUp} />} />
+                      <Area type="monotone" dataKey="probability" stroke={liveTrendUp ? "#10b981" : "#ef4444"} strokeWidth={2.5} fill="url(#liveGrad)" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Standard markets: full range buttons + history fetch + candlestick/line */
+            <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: isMobile ? "16px 14px 10px" : "20px 20px 12px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: isMobile ? 36 : 44, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>{prob}%</span>
+                    {chartData.length > 1 && (
+                      <span style={{ fontSize: 13, fontWeight: 600, color: trendUp ? "#34d399" : "#f87171" }}>
+                        {trendUp ? "▲" : "▼"} {Math.abs(trend).toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                    chance of <strong style={{ color: "#9ca3af" }}>{activeOpt.label}</strong>
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 3 }}>
+                  {RANGES.map((r) => (
+                    <button key={r} onClick={() => setRange(r)} style={{
+                      padding: isMobile ? "4px 8px" : "4px 10px", fontSize: 11, fontWeight: 600, borderRadius: 8,
+                      cursor: "pointer", border: "none",
+                      background: range === r ? "rgba(255,255,255,0.1)" : "transparent",
+                      color: range === r ? "#fff" : "#6b7280",
+                    }}>{r}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ position: "relative" }}>
+                {chartLoading && (
+                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1 }}>
+                    <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.1)", borderTopColor: "rgba(255,255,255,0.5)", animation: "spin 0.8s linear infinite" }} />
+                  </div>
+                )}
+                <div style={{ opacity: chartLoading ? 0.3 : 1, transition: "opacity 0.2s" }}>
+                  {chartData.length === 0 && !chartLoading ? (
+                    <div style={{ height: isMobile ? 160 : 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <p style={{ fontSize: 12, color: "#4b5563" }}>No price history available for this range.</p>
+                    </div>
+                  ) : chartShape === "candlestick" && ohlcData.length > 0 ? (
+                    <CandlestickChart points={ohlcData} height={isMobile ? 160 : 220} isMobile={isMobile} />
+                  ) : (
+                    <ResponsiveContainer width="100%" height={isMobile ? 160 : 220}>
+                      <AreaChart data={chartData} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
                         <defs>
-                          <linearGradient id="spotGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%"   stopColor="#34d399" stopOpacity={0.18} />
-                            <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                          <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%"   stopColor={trendUp ? "#10b981" : "#ef4444"} stopOpacity={0.22} />
+                            <stop offset="100%" stopColor={trendUp ? "#10b981" : "#ef4444"} stopOpacity={0} />
                           </linearGradient>
                         </defs>
-                        <XAxis dataKey="date" tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(spotData.length / (isMobile ? 3 : 5)))} />
-                        <YAxis domain={["auto", "auto"]} tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
-                        <Tooltip content={(p) => <SpotTooltip {...p} />} />
-                        <Area type="monotone" dataKey="value" stroke="#34d399" strokeWidth={2} fill="url(#spotGrad)" dot={false} activeDot={{ r: 3, strokeWidth: 0 }} />
+                        <XAxis dataKey="date" tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(chartData.length / (isMobile ? 3 : 5)))} />
+                        <YAxis domain={[0, 100]} tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
+                        <Tooltip content={(p) => <CustomTooltip {...p} trendUp={trendUp} />} />
+                        <Area type="monotone" dataKey="probability" stroke={trendUp ? "#10b981" : "#ef4444"} strokeWidth={2.5} fill="url(#chartGrad)" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
                       </AreaChart>
                     </ResponsiveContainer>
                   )}
@@ -898,67 +1024,6 @@ export default function MarketPage() {
               </div>
             </div>
           )}
-
-          {/* Chart */}
-          <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: isMobile ? "16px 14px 10px" : "20px 20px 12px" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: isMobile ? 36 : 44, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>{prob}%</span>
-                  {chartData.length > 1 && (
-                    <span style={{ fontSize: 13, fontWeight: 600, color: trendUp ? "#34d399" : "#f87171" }}>
-                      {trendUp ? "▲" : "▼"} {Math.abs(trend).toFixed(1)}%
-                    </span>
-                  )}
-                </div>
-                <p style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
-                  chance of <strong style={{ color: "#9ca3af" }}>{activeOpt.label}</strong>
-                </p>
-              </div>
-              <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 3 }}>
-                {RANGES.map((r) => (
-                  <button key={r} onClick={() => setRange(r)} style={{
-                    padding: isMobile ? "4px 8px" : "4px 10px", fontSize: 11, fontWeight: 600, borderRadius: 8,
-                    cursor: "pointer", border: "none",
-                    background: range === r ? "rgba(255,255,255,0.1)" : "transparent",
-                    color: range === r ? "#fff" : "#6b7280",
-                  }}>{r}</button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ position: "relative" }}>
-              {chartLoading && (
-                <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1 }}>
-                  <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.1)", borderTopColor: "rgba(255,255,255,0.5)", animation: "spin 0.8s linear infinite" }} />
-                </div>
-              )}
-              <div style={{ opacity: chartLoading ? 0.3 : 1, transition: "opacity 0.2s" }}>
-                {chartData.length === 0 && !chartLoading ? (
-                  <div style={{ height: isMobile ? 160 : 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <p style={{ fontSize: 12, color: "#4b5563" }}>No price history available for this range.</p>
-                  </div>
-                ) : chartShape === "candlestick" && ohlcData.length > 0 ? (
-                  <CandlestickChart points={ohlcData} height={isMobile ? 160 : 220} isMobile={isMobile} />
-                ) : (
-                  <ResponsiveContainer width="100%" height={isMobile ? 160 : 220}>
-                    <AreaChart data={chartData} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%"   stopColor={trendUp ? "#10b981" : "#ef4444"} stopOpacity={0.22} />
-                          <stop offset="100%" stopColor={trendUp ? "#10b981" : "#ef4444"} stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="date" tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(chartData.length / (isMobile ? 3 : 5)))} />
-                      <YAxis domain={[0, 100]} tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
-                      <Tooltip content={(p) => <CustomTooltip {...p} trendUp={trendUp} />} />
-                      <Area type="monotone" dataKey="probability" stroke={trendUp ? "#10b981" : "#ef4444"} strokeWidth={2.5} fill="url(#chartGrad)" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-          </div>
 
           {/* Stats */}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
