@@ -1,14 +1,19 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   AreaChart, Area, XAxis, YAxis,
   Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Market } from "@/types/market";
+<<<<<<< HEAD
+import CandlestickChart from "@/src/components/CandlestickChart";
+import type { OhlcPoint } from "@/src/components/CandlestickChart";
+=======
 import { slugify } from "@/lib/slugify";
 import Comments from "@/src/components/Comments";
+>>>>>>> 01a81733930a26823d6780d39f5ba78c9d8d4e3e
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 
@@ -26,13 +31,24 @@ interface ApiMarketDetail {
   description: string | null;
   resolved: boolean;
   outcome: number | null;
+<<<<<<< HEAD
+  isLiveCrypto?: boolean;
+  spot?: { symbol: string; value: number } | null;
+=======
   eventId: string;
+>>>>>>> 01a81733930a26823d6780d39f5ba78c9d8d4e3e
 }
 
 interface ApiChartPoint {
   t: string;
-  p: number;
+  p?: number;
+  o?: number;
+  h?: number;
+  l?: number;
+  c?: number;
 }
+
+type ChartShape = "line" | "candlestick";
 
 interface RelatedMarket {
   slug: string;
@@ -41,14 +57,24 @@ interface RelatedMarket {
   options: { label: string; probability: number }[];
 }
 
-type ApiRange = "1w" | "1m";
+type ApiRange = "1h" | "6h" | "1d" | "1w" | "1m" | "all";
 
 const RANGE_MAP: Record<Range, ApiRange> = {
+  "1H":  "1h",
+  "6H":  "6h",
+  "1D":  "1d",
   "1W":  "1w",
   "1M":  "1m",
-  "3M":  "1m",
-  "All": "1m",
+  "ALL": "all",
 };
+
+const RANGE_BUCKET: Record<ApiRange, string> = {
+  "1h": "minute", "6h": "minute",
+  "1d": "hour", "1w": "hour",
+  "1m": "day", "all": "halfday",
+};
+
+const SPOT_WINDOW_MS = 30_000;
 
 function formatVolume(v: number): string {
   if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M vol`;
@@ -58,20 +84,33 @@ function formatVolume(v: number): string {
 
 function formatChartDate(iso: string, range: ApiRange): string {
   const d = new Date(iso);
-  if (range === "1w") {
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (range === "1h" || range === "6h") {
+    return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+  }
+  if (range === "1d" || range === "1w") {
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", hour12: false });
   }
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function mapMarket(api: ApiMarketDetail): Market {
+interface MappedMarket extends Market {
+  isLiveCrypto: boolean;
+  spot: { symbol: string; value: number } | null;
+}
+
+function mapMarket(api: ApiMarketDetail): MappedMarket {
   return {
     id:      api.id,
     title:   api.title,
     image:   api.image ?? "",
     volume:  formatVolume(api.volume),
     options: api.options,
+<<<<<<< HEAD
+    isLiveCrypto: api.isLiveCrypto ?? false,
+    spot: api.spot ?? null,
+=======
     eventId: api.eventId,
+>>>>>>> 01a81733930a26823d6780d39f5ba78c9d8d4e3e
   };
 }
 
@@ -109,7 +148,23 @@ function CustomTooltip({ active, payload, label, trendUp }: any) {
   );
 }
 
-const RANGES = ["1W", "1M", "3M", "All"] as const;
+function SpotTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: "rgba(10,10,13,0.97)",
+      border: "1px solid rgba(52,211,153,0.2)",
+      borderRadius: 10,
+      padding: "8px 14px",
+      backdropFilter: "blur(12px)",
+    }}>
+      <p style={{ color: "#6b7280", fontSize: 10, marginBottom: 2 }}>{label}</p>
+      <p style={{ color: "#34d399", fontWeight: 700, fontSize: 15 }}>${Number(payload[0].value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+    </div>
+  );
+}
+
+const RANGES = ["1H", "6H", "1D", "1W", "1M", "ALL"] as const;
 type Range = (typeof RANGES)[number];
 
 // ─── Mobile Bottom Sheet Bet Panel ───────────────────────────────────────────
@@ -410,20 +465,26 @@ export default function MarketPage() {
   const slug      = params.slug as string;
   const isMobile  = useIsMobile();
 
-  const [market,       setMarket]       = useState<Market | null>(null);
+  const [market,       setMarket]       = useState<MappedMarket | null>(null);
   const [notFound,     setNotFound]     = useState(false);
   const [loadError,    setLoadError]    = useState(false);
   const [activeOption, setActiveOption] = useState(0);
-  const [range,        setRange]        = useState<Range>("1M");
+  const [range,        setRange]        = useState<Range>("1D");
   const [chartData,    setChartData]    = useState<{ date: string; probability: number }[]>([]);
+  const [ohlcData,     setOhlcData]     = useState<OhlcPoint[]>([]);
+  const [chartShape,   setChartShape]   = useState<ChartShape>("line");
   const [chartLoading, setChartLoading] = useState(false);
   const [betType,      setBetType]      = useState<"yes" | "no">("yes");
   const [amount,       setAmount]       = useState("");
   const [livePrices,     setLivePrices]     = useState<{ yes: number; no: number } | null>(null);
   const [isLocked,       setIsLocked]       = useState(false);
   const [wsResolved,     setWsResolved]     = useState<number | null>(null);
+  const [spotData,       setSpotData]       = useState<{ date: string; value: number }[]>([]);
+  const [spotLoading,    setSpotLoading]    = useState(false);
   const [marketTags,     setMarketTags]     = useState<string[]>([]);
   const [relatedMarkets, setRelatedMarkets] = useState<RelatedMarket[]>([]);
+  const rangeRef = useRef<Range>(range);
+  rangeRef.current = range;
 
   // Fetch market detail
   useEffect(() => {
@@ -451,17 +512,28 @@ export default function MarketPage() {
     const apiRange = RANGE_MAP[range];
     setChartLoading(true);
     setChartData([]);
+    setOhlcData([]);
     fetch(`${API_BASE}/api/markets/by-slug/${slug}/history?range=${apiRange}`)
-      .then((r) => r.ok ? r.json() : { points: [] })
-      .then((data: { points: ApiChartPoint[] }) => {
+      .then((r) => r.ok ? r.json() : { points: [], shape: "line" })
+      .then((data: { points: ApiChartPoint[]; shape?: ChartShape }) => {
+        const shape = data.shape ?? "line";
+        const pts = data.points ?? [];
+        setChartShape(shape);
+        if (shape === "candlestick") {
+          setOhlcData(pts.filter((pt): pt is OhlcPoint => pt.o != null).map((pt) => ({
+            t: pt.t, o: pt.o!, h: pt.h!, l: pt.l!, c: pt.c!,
+          })));
+        } else {
+          setOhlcData([]);
+        }
         setChartData(
-          (data.points ?? []).map((pt) => ({
+          pts.map((pt) => ({
             date:        formatChartDate(pt.t, apiRange),
-            probability: pt.p,
+            probability: pt.p ?? pt.c ?? 0,
           }))
         );
       })
-      .catch(() => setChartData([]))
+      .catch(() => { setChartData([]); setOhlcData([]); })
       .finally(() => setChartLoading(false));
   }, [market, range]);
 
@@ -505,6 +577,31 @@ export default function MarketPage() {
             setWsResolved(msg.outcome ?? null);
           } else if (msg.type === 'market_locked') {
             setIsLocked(true);
+          } else if (msg.type === 'history_point') {
+            const currentRange = rangeRef.current;
+            const apiRange = RANGE_MAP[currentRange];
+            const expectedBucket = RANGE_BUCKET[apiRange];
+            if (msg.bucket === expectedBucket) {
+              const dateLabel = formatChartDate(msg.t, apiRange);
+              const closeVal: number = msg.c;
+              setChartData((prev) => {
+                if (prev.length > 0 && prev[prev.length - 1].date === dateLabel) {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = { date: dateLabel, probability: closeVal };
+                  return updated;
+                }
+                return [...prev, { date: dateLabel, probability: closeVal }];
+              });
+              setOhlcData((prev) => {
+                const pt: OhlcPoint = { t: msg.t, o: msg.o, h: msg.h, l: msg.l, c: msg.c };
+                if (prev.length > 0 && prev[prev.length - 1].t === msg.t) {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = pt;
+                  return updated;
+                }
+                return [...prev, pt];
+              });
+            }
           } else if (msg.type === 'error') {
             console.error('[ws/prices]', msg.message);
           }
@@ -534,6 +631,86 @@ export default function MarketPage() {
       }
     };
   }, [market, slug]);
+
+  // Spot chart: fetch initial 30s window + subscribe to /ws/spot for live ticks
+  const spotSymbol = market?.isLiveCrypto ? market.spot?.symbol : undefined;
+
+  useEffect(() => {
+    if (!spotSymbol) return;
+    setSpotLoading(true);
+    const encoded = encodeURIComponent(spotSymbol);
+    fetch(`${API_BASE}/api/spot/${encoded}/history`)
+      .then((r) => r.ok ? r.json() : { points: [] })
+      .then((data: { points: { t: number; value: number }[] }) => {
+        const now = Date.now();
+        setSpotData(
+          (data.points ?? [])
+            .filter((pt) => pt.t >= now - SPOT_WINDOW_MS)
+            .map((pt) => ({
+              date: new Date(pt.t).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }),
+              value: pt.value,
+            }))
+        );
+      })
+      .catch(() => setSpotData([]))
+      .finally(() => setSpotLoading(false));
+  }, [spotSymbol]);
+
+  useEffect(() => {
+    if (!spotSymbol) return;
+
+    let cancelled = false;
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let backoff = 1000;
+
+    function connect() {
+      if (cancelled) return;
+      ws = new WebSocket(`${WS_BASE}/ws/spot`);
+
+      ws.onopen = () => { backoff = 1000; };
+
+      ws.onmessage = (ev) => {
+        if (cancelled) return;
+        try {
+          const msg = JSON.parse(ev.data as string);
+          if (msg.type === 'spot_update' && msg.symbol === spotSymbol) {
+            const t = msg.priceTs ? Date.parse(msg.priceTs) : Date.now();
+            const date = new Date(t).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+            setSpotData((prev) => {
+              const cutoff = Date.now() - SPOT_WINDOW_MS;
+              const filtered = prev.filter((_, i) => {
+                const ptDate = prev[i];
+                return ptDate !== undefined;
+              });
+              const next = [...filtered, { date, value: msg.value as number }];
+              if (next.length > 200) next.splice(0, next.length - 200);
+              return next;
+            });
+          }
+        } catch {}
+      };
+
+      ws.onclose = () => {
+        if (cancelled) return;
+        backoff = Math.min(backoff * 2, 30_000);
+        reconnectTimer = setTimeout(connect, backoff);
+      };
+
+      ws.onerror = () => { ws?.close(); };
+    }
+
+    connect();
+
+    return () => {
+      cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
+    };
+  }, [spotSymbol]);
 
   // Merge live WS prices into the options array (no-op when WS is quiet)
   const liveOptions = useMemo(() => {
@@ -684,6 +861,54 @@ export default function MarketPage() {
             })}
           </div>
 
+          {/* Spot chart — primary chart for live-crypto markets */}
+          {market.isLiveCrypto && spotSymbol && (
+            <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: isMobile ? "16px 14px 10px" : "20px 20px 12px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: "#e5e7eb", textTransform: "uppercase" }}>
+                    {spotSymbol}
+                  </span>
+                  <span style={{ fontSize: 11, color: "#6b7280", marginLeft: 8 }}>live · 30s</span>
+                  {spotData.length > 0 && (
+                    <span style={{ fontSize: 16, fontWeight: 800, color: "#fff", marginLeft: 12 }}>
+                      ${spotData[spotData.length - 1].value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ position: "relative" }}>
+                {spotLoading && (
+                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1 }}>
+                    <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.1)", borderTopColor: "rgba(255,255,255,0.5)", animation: "spin 0.8s linear infinite" }} />
+                  </div>
+                )}
+                <div style={{ opacity: spotLoading ? 0.3 : 1, transition: "opacity 0.2s" }}>
+                  {spotData.length === 0 && !spotLoading ? (
+                    <div style={{ height: isMobile ? 120 : 160, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <p style={{ fontSize: 12, color: "#4b5563" }}>Waiting for spot price data...</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={isMobile ? 120 : 160}>
+                      <AreaChart data={spotData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="spotGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%"   stopColor="#34d399" stopOpacity={0.18} />
+                            <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="date" tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(spotData.length / (isMobile ? 3 : 5)))} />
+                        <YAxis domain={["auto", "auto"]} tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
+                        <Tooltip content={(p) => <SpotTooltip {...p} />} />
+                        <Area type="monotone" dataKey="value" stroke="#34d399" strokeWidth={2} fill="url(#spotGrad)" dot={false} activeDot={{ r: 3, strokeWidth: 0 }} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Chart */}
           <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: isMobile ? "16px 14px 10px" : "20px 20px 12px" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
@@ -723,6 +948,8 @@ export default function MarketPage() {
                   <div style={{ height: isMobile ? 160 : 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <p style={{ fontSize: 12, color: "#4b5563" }}>No price history available for this range.</p>
                   </div>
+                ) : chartShape === "candlestick" && ohlcData.length > 0 ? (
+                  <CandlestickChart points={ohlcData} height={isMobile ? 160 : 220} isMobile={isMobile} />
                 ) : (
                   <ResponsiveContainer width="100%" height={isMobile ? 160 : 220}>
                     <AreaChart data={chartData} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
