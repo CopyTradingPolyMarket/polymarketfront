@@ -7,13 +7,9 @@ import {
   Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Market } from "@/types/market";
-<<<<<<< HEAD
 import CandlestickChart from "@/src/components/CandlestickChart";
 import type { OhlcPoint } from "@/src/components/CandlestickChart";
-=======
-import { slugify } from "@/lib/slugify";
 import Comments from "@/src/components/Comments";
->>>>>>> 01a81733930a26823d6780d39f5ba78c9d8d4e3e
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 
@@ -31,12 +27,9 @@ interface ApiMarketDetail {
   description: string | null;
   resolved: boolean;
   outcome: number | null;
-<<<<<<< HEAD
   isLiveCrypto?: boolean;
   spot?: { symbol: string; value: number } | null;
-=======
   eventId: string;
->>>>>>> 01a81733930a26823d6780d39f5ba78c9d8d4e3e
 }
 
 interface ApiChartPoint {
@@ -105,12 +98,9 @@ function mapMarket(api: ApiMarketDetail): MappedMarket {
     image:   api.image ?? "",
     volume:  formatVolume(api.volume),
     options: api.options,
-<<<<<<< HEAD
     isLiveCrypto: api.isLiveCrypto ?? false,
     spot: api.spot ?? null,
-=======
     eventId: api.eventId,
->>>>>>> 01a81733930a26823d6780d39f5ba78c9d8d4e3e
   };
 }
 
