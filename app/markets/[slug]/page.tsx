@@ -711,6 +711,27 @@ export default function MarketPage() {
     }));
   }, [market, livePrices]);
 
+  // Aggregate spot raw ticks into 2-second OHLC candles for the candlestick chart
+  const spotCandles = useMemo((): OhlcPoint[] => {
+    if (spotRawTicks.length === 0) return [];
+    const BUCKET_MS = 2000;
+    const buckets = new Map<number, { o: number; h: number; l: number; c: number }>();
+    for (const tick of spotRawTicks) {
+      const key = Math.floor(tick.t / BUCKET_MS) * BUCKET_MS;
+      const b = buckets.get(key);
+      if (!b) {
+        buckets.set(key, { o: tick.value, h: tick.value, l: tick.value, c: tick.value });
+      } else {
+        if (tick.value > b.h) b.h = tick.value;
+        if (tick.value < b.l) b.l = tick.value;
+        b.c = tick.value;
+      }
+    }
+    return [...buckets.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([t, b]) => ({ t: new Date(t).toISOString(), o: b.o, h: b.h, l: b.l, c: b.c }));
+  }, [spotRawTicks]);
+
   // ── Early returns ──
 
   if (notFound) return (
@@ -734,27 +755,6 @@ export default function MarketPage() {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
-
-  // Aggregate spot raw ticks into 2-second OHLC candles for the candlestick chart
-  const spotCandles = useMemo((): OhlcPoint[] => {
-    if (spotRawTicks.length === 0) return [];
-    const BUCKET_MS = 2000;
-    const buckets = new Map<number, { o: number; h: number; l: number; c: number }>();
-    for (const tick of spotRawTicks) {
-      const key = Math.floor(tick.t / BUCKET_MS) * BUCKET_MS;
-      const b = buckets.get(key);
-      if (!b) {
-        buckets.set(key, { o: tick.value, h: tick.value, l: tick.value, c: tick.value });
-      } else {
-        if (tick.value > b.h) b.h = tick.value;
-        if (tick.value < b.l) b.l = tick.value;
-        b.c = tick.value;
-      }
-    }
-    return [...buckets.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([t, b]) => ({ t: new Date(t).toISOString(), o: b.o, h: b.h, l: b.l, c: b.c }));
-  }, [spotRawTicks]);
 
   // Live YES trend for live-crypto
   const liveTrend = livePriceHistory.length > 1
