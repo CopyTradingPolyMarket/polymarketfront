@@ -11,6 +11,7 @@ export interface TraderProfile {
   followers: number;
   following: number;
   totalPnl: string;
+  totalPnlRaw: number;
   totalPnlPercent: number;
   winRate: number;
   totalTrades: number;
@@ -19,6 +20,7 @@ export interface TraderProfile {
   bestTradePercent: number;
   streak: number;
   volumeTraded: string;
+  volumeTradedRaw: number;
   isVerified: boolean;
   tier: "bronze" | "silver" | "gold" | "diamond";
 }

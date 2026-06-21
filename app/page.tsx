@@ -5,6 +5,7 @@ import HomeSidebar from "@/src/components/HomeSidebar";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 interface ApiMarket {
+  slug: string;
   title: string;
   volume: number;
   options: { label: string; probability: number }[];
