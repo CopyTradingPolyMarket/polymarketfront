@@ -88,15 +88,23 @@ function formatChartDate(iso: string, range: ApiRange): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function formatDuration(slug: string): string | null {
+const SLUG_PREFIX_TO_TICKER: Record<string, string> = {
+  btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP',
+  bitcoin: 'BTC', ethereum: 'ETH', solana: 'SOL',
+};
+
+function formatLiveCryptoTitle(slug: string): string | null {
+  const prefix = slug.split('-')[0].toLowerCase();
+  const ticker = SLUG_PREFIX_TO_TICKER[prefix];
+  if (!ticker) return null;
   const m = slug.match(/-updown-(\d+)m-/);
   if (m) {
     const n = parseInt(m[1]);
-    if (n >= 60 && n % 60 === 0) return `${n / 60} hour`;
-    return `${n} minute`;
+    const dur = n >= 60 && n % 60 === 0 ? `${n / 60}h` : `${n}m`;
+    return `${ticker} Up or Down ${dur}`;
   }
-  if (/-up-or-down-on-/.test(slug)) return 'Daily';
-  if (/-up-or-down-/.test(slug)) return 'Hourly';
+  if (/-up-or-down-on-/.test(slug)) return `${ticker} Up or Down Daily`;
+  if (/-up-or-down-/.test(slug)) return `${ticker} Up or Down`;
   return null;
 }
 
@@ -805,7 +813,7 @@ export default function MarketPage() {
         </button>
         <div style={{ width: 1, height: 18, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
         <span style={{ color: "#9ca3af", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-          {market.title}
+          {(market.isLiveCrypto && formatLiveCryptoTitle(market.slug)) || market.title}
         </span>
         {!isMobile && (
           <div style={{ display: "flex", gap: 8, marginLeft: "auto", flexShrink: 0 }}>
@@ -835,16 +843,9 @@ export default function MarketPage() {
             <img src={market.image} alt={market.title}
               style={{ width: isMobile ? 48 : 60, height: isMobile ? 48 : 60, borderRadius: 14, objectFit: "cover", border: "1px solid rgba(255,255,255,0.08)", flexShrink: 0, background: "#1a1a1e" }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <h1 style={{ fontSize: isMobile ? 17 : 22, fontWeight: 800, lineHeight: 1.3, letterSpacing: "-0.025em", margin: 0 }}>{market.title}</h1>
+              <h1 style={{ fontSize: isMobile ? 17 : 22, fontWeight: 800, lineHeight: 1.3, letterSpacing: "-0.025em", margin: 0 }}>{(market.isLiveCrypto && formatLiveCryptoTitle(market.slug)) || market.title}</h1>
               <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                {market.isLiveCrypto && formatDuration(market.slug) && (
-                  <span style={{ fontSize: 11, color: "#f7931a", background: "rgba(247,147,26,0.1)", border: "1px solid rgba(247,147,26,0.25)", borderRadius: 100, padding: "3px 10px", whiteSpace: "nowrap", fontWeight: 600 }}>
-                    {formatDuration(market.slug)}
-                  </span>
-                )}
-                {[market.volume].map((item, i) => (
-                  <span key={i} style={{ fontSize: 11, color: "#6b7280", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, padding: "3px 10px", whiteSpace: "nowrap" }}>{item}</span>
-                ))}
+                <span style={{ fontSize: 11, color: "#6b7280", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, padding: "3px 10px", whiteSpace: "nowrap" }}>{market.volume}</span>
               </div>
             </div>
           </div>

@@ -74,6 +74,23 @@ export default function LiveCryptoChart({ spotData, priceToBeat, spotSymbol, slu
   const delta = currentPrice !== null && priceToBeat !== null ? currentPrice - priceToBeat : null;
   const above = delta !== null ? delta >= 0 : null;
 
+  // Compute Y domain that always includes the target line
+  const yDomain: [number, number] | ["auto", "auto"] = (() => {
+    if (spotData.length === 0) return ["auto", "auto"] as ["auto", "auto"];
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const pt of spotData) {
+      if (pt.value < lo) lo = pt.value;
+      if (pt.value > hi) hi = pt.value;
+    }
+    if (priceToBeat !== null) {
+      if (priceToBeat < lo) lo = priceToBeat;
+      if (priceToBeat > hi) hi = priceToBeat;
+    }
+    const pad = Math.max((hi - lo) * 0.15, 1);
+    return [lo - pad, hi + pad];
+  })();
+
   return (
     <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: isMobile ? "16px 14px 12px" : "20px 20px 14px" }}>
       {/* Header row */}
@@ -140,22 +157,23 @@ export default function LiveCryptoChart({ spotData, priceToBeat, spotSymbol, slu
                 />
                 <YAxis
                   orientation="right"
-                  domain={["auto", "auto"]}
+                  domain={yDomain}
                   tick={{ fill: "#4b5563", fontSize: 9 }}
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(v) => `$${Number(v).toLocaleString()}`}
-                  width={65}
+                  width={70}
                 />
                 {priceToBeat !== null && (
                   <ReferenceLine
                     y={priceToBeat}
-                    stroke="#6b7280"
+                    stroke="#d4a054"
                     strokeDasharray="6 3"
+                    strokeWidth={1.5}
                     label={{
-                      value: "Target",
-                      fill: "#6b7280",
-                      fontSize: 10,
+                      value: `Target $${priceToBeat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                      fill: "#d4a054",
+                      fontSize: 9,
                       position: "right",
                     }}
                   />
