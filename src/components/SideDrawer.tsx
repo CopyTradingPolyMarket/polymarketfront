@@ -32,6 +32,7 @@ const NAV_SECTIONS = [
   {
     heading: "Account",
     links: [
+      { label: "Profile",     href: "/profile",     icon: ProfileIcon     },
       { label: "Portfolio",   href: "/portfolio",   icon: PortfolioIcon   },
       { label: "Activity",    href: "/activity",    icon: ActivityIcon    },
       { label: "Leaderboard", href: "/leaderboard", icon: LeaderboardIcon },
@@ -58,6 +59,7 @@ function CryptoIcon()      { return <svg width="16" height="16" viewBox="0 0 20 
 function GlobeIcon()       { return <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.7"/><path d="M10 2.5C10 2.5 7 6 7 10s3 7.5 3 7.5M10 2.5c0 0 3 3.5 3 7.5s-3 7.5-3 7.5M2.5 10h15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>; }
 function TechIcon()        { return <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2.5" y="4" width="15" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.7"/><path d="M6.5 17.5h7M10 14v3.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>; }
 function FinanceIcon()     { return <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M3 13l4-4 3 3 7-7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/><path d="M2.5 17h15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>; }
+function ProfileIcon()     { return <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.7"/><path d="M3 17.5a7 7 0 0 1 14 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>; }
 function PortfolioIcon()   { return <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2.5" y="6.5" width="15" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.7"/><path d="M7 6.5V5a3 3 0 0 1 6 0v1.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>; }
 function ActivityIcon()    { return <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><polyline points="2,10 5,10 7,4 9,16 11,8 13,12 15,10 18,10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
 function LeaderboardIcon() { return <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M10 3l1.8 3.6 4 .6-2.9 2.8.7 4L10 12l-3.6 1.9.7-4L4.2 7.2l4-.6L10 3z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>; }
