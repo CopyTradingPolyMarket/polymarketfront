@@ -91,6 +91,8 @@ interface MappedMarket extends Market {
   isLiveCrypto: boolean;
   spot: { symbol: string; value: number } | null;
   priceToBeat: number | null;
+  slug: string;
+  resolved: boolean;
 }
 
 function mapMarket(api: ApiMarketDetail): MappedMarket {
@@ -103,6 +105,8 @@ function mapMarket(api: ApiMarketDetail): MappedMarket {
     isLiveCrypto: api.isLiveCrypto ?? false,
     spot: api.spot ?? null,
     priceToBeat: api.line ?? null,
+    slug: api.slug,
+    resolved: api.resolved ?? false,
     eventId: api.eventId,
   };
 }
@@ -150,6 +154,7 @@ function MobileBetSheet({
   market, activeOption, setActiveOption,
   betType, setBetType, amount, setAmount,
   estimatedShares, potentialProfit, prob,
+  isDone, doneLabel,
 }: any) {
   const [expanded, setExpanded] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -294,16 +299,17 @@ function MobileBetSheet({
               </div>
             )}
 
-            <button style={{
+            <button disabled={isDone} style={{
               width: "100%", padding: "15px 0", borderRadius: 14, fontSize: 15, fontWeight: 700,
-              cursor: "pointer", border: "none",
-              background: isYes ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)",
-              color: "#fff",
-              boxShadow: isYes ? "0 4px 24px rgba(16,185,129,0.3)" : "0 4px 24px rgba(239,68,68,0.3)",
+              cursor: isDone ? "not-allowed" : "pointer", border: "none",
+              background: isDone ? "#374151" : isYes ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)",
+              color: isDone ? "#6b7280" : "#fff",
+              boxShadow: isDone ? "none" : isYes ? "0 4px 24px rgba(16,185,129,0.3)" : "0 4px 24px rgba(239,68,68,0.3)",
+              opacity: isDone ? 0.7 : 1,
             }}>
-              {isYes ? "Buy Yes" : "Buy No"} · {activeOpt.label}
+              {isDone ? doneLabel : `${isYes ? "Buy Yes" : "Buy No"} · ${activeOpt.label}`}
             </button>
-            <p style={{ textAlign: "center", fontSize: 11, color: "#4b5563", marginTop: 10 }}>Connect wallet to place a bet</p>
+            {!isDone && <p style={{ textAlign: "center", fontSize: 11, color: "#4b5563", marginTop: 10 }}>Connect wallet to place a bet</p>}
           </div>
         )}
       </div>
@@ -315,7 +321,7 @@ function MobileBetSheet({
 
 // ─── Desktop Bet Panel ────────────────────────────────────────────────────────
 
-function DesktopBetPanel({ market, activeOption, setActiveOption, betType, setBetType, amount, setAmount, estimatedShares, potentialProfit, prob, router, relatedMarkets }: any) {
+function DesktopBetPanel({ market, activeOption, setActiveOption, betType, setBetType, amount, setAmount, estimatedShares, potentialProfit, prob, router, relatedMarkets, isDone, doneLabel }: any) {
   const activeOpt = market.options[activeOption];
   const isYes = betType === "yes";
 
@@ -400,16 +406,17 @@ function DesktopBetPanel({ market, activeOption, setActiveOption, betType, setBe
         )}
 
         <div style={{ padding: 16 }}>
-          <button style={{
+          <button disabled={isDone} style={{
             width: "100%", padding: "14px 0", borderRadius: 14, fontSize: 14, fontWeight: 700,
-            cursor: "pointer", border: "none",
-            background: isYes ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)",
-            color: "#fff",
-            boxShadow: isYes ? "0 4px 24px rgba(16,185,129,0.28)" : "0 4px 24px rgba(239,68,68,0.28)",
+            cursor: isDone ? "not-allowed" : "pointer", border: "none",
+            background: isDone ? "#374151" : isYes ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)",
+            color: isDone ? "#6b7280" : "#fff",
+            boxShadow: isDone ? "none" : isYes ? "0 4px 24px rgba(16,185,129,0.28)" : "0 4px 24px rgba(239,68,68,0.28)",
+            opacity: isDone ? 0.7 : 1,
           }}>
-            {isYes ? "Buy Yes" : "Buy No"} · {activeOpt.label}
+            {isDone ? doneLabel : `${isYes ? "Buy Yes" : "Buy No"} · ${activeOpt.label}`}
           </button>
-          <p style={{ textAlign: "center", fontSize: 11, color: "#4b5563", marginTop: 10 }}>Connect wallet to place a bet</p>
+          {!isDone && <p style={{ textAlign: "center", fontSize: 11, color: "#4b5563", marginTop: 10 }}>Connect wallet to place a bet</p>}
         </div>
       </div>
 
@@ -747,7 +754,22 @@ export default function MarketPage() {
   const trend   = chartData.length > 1 ? chartData[chartData.length - 1].probability - chartData[0].probability : 0;
   const trendUp = trend >= 0;
 
-  const sharedPanelProps = { market: effectiveMarket, activeOption, setActiveOption, betType, setBetType, amount, setAmount, estimatedShares, potentialProfit, prob, router };
+  // Market is done: resolved, locked, or expired 5-min window
+  const isExpired5m = (() => {
+    const m = market.slug?.match(/-updown-(\d+)m-(\d+)$/);
+    if (!m) return false;
+    const duration = parseInt(m[1]) * 60;
+    const ts = parseInt(m[2]);
+    return ts + duration < Date.now() / 1000;
+  })();
+  const isDone = wsResolved !== null || isLocked || isExpired5m || market.resolved === true;
+  const doneLabel = wsResolved !== null
+    ? `Resolved · ${wsResolved === 1 ? "UP" : "DOWN"}`
+    : isExpired5m ? "Window Expired"
+    : isLocked ? "Market Locked"
+    : "Market Closed";
+
+  const sharedPanelProps = { market: effectiveMarket, activeOption, setActiveOption, betType, setBetType, amount, setAmount, estimatedShares, potentialProfit, prob, router, isDone, doneLabel };
 
   return (
     <div style={{ minHeight: "100vh", background: "#09090b", color: "#fff", fontFamily: "'DM Sans','Helvetica Neue',sans-serif" }}>
