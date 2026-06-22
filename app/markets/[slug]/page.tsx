@@ -598,7 +598,7 @@ export default function MarketPage() {
               });
             }
           } else if (msg.type === 'error') {
-            console.error('[ws/prices]', msg.message);
+            console.warn('[ws/prices]', msg.message);
           }
         } catch {}
       };
