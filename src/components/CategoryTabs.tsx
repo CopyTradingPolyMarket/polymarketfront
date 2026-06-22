@@ -17,7 +17,7 @@ const SORT_TABS: { label: string; sortParam: string; icon?: boolean }[] = [
 // ─── Category tabs ───────────────────────────────────────────────────────────
 // Only categories that have live markets in the DB. "All" clears the filter.
 
-const CATEGORY_TABS = ["All", "Politics", "Sports", "Crypto", "Elections", "Culture", "Tech", "AI"];
+const CATEGORY_TABS = ["All", "Live Crypto", "Politics", "Sports", "Crypto", "Elections", "Culture", "Tech", "AI"];
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
@@ -104,6 +104,9 @@ export default function CategoryTabs() {
           {CATEGORY_TABS.map((cat) => (
             <li key={cat}>
               <button onClick={() => selectCategory(cat)} className={tabCls(isCategoryActive(cat))}>
+                {cat === "Live Crypto" && (
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                )}
                 {cat}
               </button>
             </li>
