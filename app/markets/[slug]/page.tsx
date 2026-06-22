@@ -9,9 +9,12 @@ import {
 import { Market } from "@/types/market";
 import CandlestickChart from "@/src/components/CandlestickChart";
 import type { OhlcPoint } from "@/src/components/CandlestickChart";
+import { useAuth } from "@/src/providers/AuthProvider";
+import { usePrivy } from "@privy-io/react-auth";
 import LiveCryptoChart from "@/src/components/LiveCryptoChart";
-import Comments from "@/src/components/Comments";
 import { formatLiveCryptoTitle } from "@/lib/liveCryptoTitle";
+import { slugify } from "@/lib/slugify";
+import Comments from "@/src/components/Comments";
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 
@@ -71,6 +74,10 @@ const RANGE_BUCKET: Record<ApiRange, string> = {
 };
 
 const SPOT_WINDOW_MS = 30_000;
+
+function isConditionId(s: string): boolean {
+  return /^0x[a-fA-F0-9]{64}$/.test(s);
+}
 
 function formatVolume(v: number): string {
   if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M vol`;
@@ -156,14 +163,24 @@ function MobileBetSheet({
   market, activeOption, setActiveOption,
   betType, setBetType, amount, setAmount,
   estimatedShares, potentialProfit, prob,
-  isDone, doneLabel,
+  handleTrade, tradeStatus, tradeMessage, authenticated,
+  panelMode, setPanelMode, sellSide, setSellSide, sellDollars, setSellDollars, sellIsMax, setSellIsMax, userPosition, positionLoading, handleSell, sellStatus, sellMessage,
 }: any) {
   const [expanded, setExpanded] = useState(false);
+  const [sideHint, setSideHint] = useState<string | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const startY   = useRef<number | null>(null);
 
-  const activeOpt = market.options[activeOption];
-  const isYes = betType === "yes";
+  const activeOpt  = market.options[activeOption];
+  const isYes      = betType === "yes";
+  const holdingYes = (userPosition?.yesShares ?? 0) > 0;
+  const holdingNo  = (userPosition?.noShares  ?? 0) > 0;
+  const holdingAny = holdingYes || holdingNo;
+  const maxShares  = sellSide === "YES" ? (userPosition?.yesShares ?? 0) : (userPosition?.noShares ?? 0);
+  const sideCents  = (market.options.find((o: any) => o.label.toLowerCase() === (sellSide === "YES" ? "yes" : "no"))?.probability ?? 0) as number;
+  const maxDollars = sideCents > 0 ? maxShares * (sideCents / 100) : 0;
+  const maxDollarsDisplay = (Math.floor(maxDollars * 100) / 100).toFixed(2);
+  const estShares  = sideCents > 0 && Number(sellDollars) > 0 ? Number(sellDollars) / (sideCents / 100) : 0;
 
   const onTouchStart = (e: React.TouchEvent) => {
     startY.current = e.touches[0].clientY;
@@ -209,109 +226,195 @@ function MobileBetSheet({
           <div className="flex items-center gap-2">
             <div
               className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black"
-              style={{ background: isYes ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)", color: isYes ? "#34d399" : "#f87171" }}
+              style={{ background: panelMode === "sell" ? "rgba(239,68,68,0.15)" : (isYes ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)"), color: panelMode === "sell" ? "#f87171" : (isYes ? "#34d399" : "#f87171") }}
             >
-              {isYes ? "Y" : "N"}
+              {panelMode === "sell" ? "S" : (isYes ? "Y" : "N")}
             </div>
             <div>
-              <p className="text-xs font-semibold text-white">{activeOpt.label}</p>
+              <p className="text-xs font-semibold text-white">{panelMode === "sell" ? "Sell" : activeOpt.label}</p>
               <p className="text-[10px]" style={{ color: isYes ? "#34d399" : "#f87171" }}>{prob}% chance</p>
             </div>
           </div>
           <button
             style={{
               padding: "8px 18px", borderRadius: 12, fontSize: 13, fontWeight: 700, border: "none",
-              background: isYes ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)",
+              background: panelMode === "sell" ? "linear-gradient(135deg,#ef4444,#dc2626)" : (isYes ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)"),
               color: "#fff", cursor: "pointer",
-              boxShadow: isYes ? "0 2px 12px rgba(16,185,129,0.3)" : "0 2px 12px rgba(239,68,68,0.3)",
+              boxShadow: panelMode === "sell" ? "0 2px 12px rgba(239,68,68,0.3)" : (isYes ? "0 2px 12px rgba(16,185,129,0.3)" : "0 2px 12px rgba(239,68,68,0.3)"),
             }}
             onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
           >
-            Trade
+            {panelMode === "sell" ? "Sell" : "Trade"}
           </button>
         </div>
 
         {expanded && (
           <div className="px-4 pb-6 pt-1" style={{ maxHeight: "75vh", overflowY: "auto" }}>
-            <p style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Outcome</p>
-            <div className="flex flex-col gap-2 mb-4">
-              {market.options.map((opt: any, idx: number) => {
-                const active = activeOption === idx;
-                return (
-                  <button key={idx} onClick={() => setActiveOption(idx)} style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "11px 14px", borderRadius: 12, cursor: "pointer",
-                    border: active ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.06)",
-                    background: active ? "rgba(255,255,255,0.07)" : "transparent",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 16, height: 16, borderRadius: "50%", border: active ? "5px solid #fff" : "2px solid #374151", flexShrink: 0 }} />
-                      <span style={{ fontSize: 14, fontWeight: 600, color: active ? "#fff" : "#9ca3af" }}>{opt.label}</span>
-                    </div>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: opt.probability >= 50 ? "#34d399" : "#f87171" }}>{opt.probability}%</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <p style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Position</p>
+            {/* Buy / Sell toggle */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 4, gap: 4, marginBottom: 16 }}>
-              {(["yes", "no"] as const).map((t) => (
-                <button key={t} onClick={() => setBetType(t)} style={{
+              {(["buy", "sell"] as const).map((m) => (
+                <button key={m} onClick={() => setPanelMode(m)} style={{
                   padding: "10px 0", borderRadius: 9, fontSize: 13, fontWeight: 700,
                   cursor: "pointer", border: "none",
-                  background: betType === t ? (t === "yes" ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)") : "transparent",
-                  color: betType === t ? (t === "yes" ? "#34d399" : "#f87171") : "#6b7280",
-                }}>{t === "yes" ? "Buy Yes" : "Buy No"}</button>
+                  background: panelMode === m ? (m === "buy" ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)") : "transparent",
+                  color: panelMode === m ? (m === "buy" ? "#34d399" : "#f87171") : "#6b7280",
+                }}>{m === "buy" ? "Buy" : "Sell"}</button>
               ))}
             </div>
 
-            <p style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Amount</p>
-            <div style={{ position: "relative", marginBottom: 8 }}>
-              <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#6b7280", fontSize: 16, fontWeight: 600, pointerEvents: "none" }}>$</span>
-              <input
-                type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0"
-                style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, paddingLeft: 30, paddingRight: 14, paddingTop: 13, paddingBottom: 13, color: "#fff", fontSize: 20, fontWeight: 700, outline: "none" }}
-              />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 16 }}>
-              {["10", "25", "50", "100"].map((v) => (
-                <button key={v} onClick={() => setAmount(v)} style={{
-                  padding: "8px 0", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  background: amount === v ? "rgba(255,255,255,0.08)" : "transparent",
-                  color: amount === v ? "#fff" : "#6b7280",
-                }}>${v}</button>
-              ))}
-            </div>
-
-            {estimatedShares && (
-              <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 12, padding: "12px 14px", marginBottom: 16 }}>
-                {[{ label: "Shares", value: estimatedShares }, { label: "Avg price", value: `${(prob / 100).toFixed(2)}¢` }].map((row) => (
-                  <div key={row.label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span style={{ fontSize: 12, color: "#6b7280" }}>{row.label}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{row.value}</span>
-                  </div>
-                ))}
-                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "8px 0" }} />
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 12, color: "#6b7280" }}>Potential profit</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>+${potentialProfit}</span>
-                </div>
+            {/* BUY MODE */}
+            {panelMode === "buy" && (<>
+              <p style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Outcome</p>
+              <div className="flex flex-col gap-2 mb-4">
+                {market.options.map((opt: any, idx: number) => {
+                  const active = activeOption === idx;
+                  return (
+                    <button key={idx} onClick={() => setActiveOption(idx)} style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "11px 14px", borderRadius: 12, cursor: "pointer",
+                      border: active ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.06)",
+                      background: active ? "rgba(255,255,255,0.07)" : "transparent",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 16, height: 16, borderRadius: "50%", border: active ? "5px solid #fff" : "2px solid #374151", flexShrink: 0 }} />
+                        <span style={{ fontSize: 14, fontWeight: 600, color: active ? "#fff" : "#9ca3af" }}>{opt.label}</span>
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: opt.probability >= 50 ? "#34d399" : "#f87171" }}>{opt.probability}%</span>
+                    </button>
+                  );
+                })}
               </div>
-            )}
 
-            <button disabled={isDone} style={{
-              width: "100%", padding: "15px 0", borderRadius: 14, fontSize: 15, fontWeight: 700,
-              cursor: isDone ? "not-allowed" : "pointer", border: "none",
-              background: isDone ? "#374151" : isYes ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)",
-              color: isDone ? "#6b7280" : "#fff",
-              boxShadow: isDone ? "none" : isYes ? "0 4px 24px rgba(16,185,129,0.3)" : "0 4px 24px rgba(239,68,68,0.3)",
-              opacity: isDone ? 0.7 : 1,
-            }}>
-              {isDone ? doneLabel : `${isYes ? "Buy Yes" : "Buy No"} · ${activeOpt.label}`}
-            </button>
-            {!isDone && <p style={{ textAlign: "center", fontSize: 11, color: "#4b5563", marginTop: 10 }}>Connect wallet to place a bet</p>}
+              <p style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Position</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 4, gap: 4, marginBottom: 16 }}>
+                {(["yes", "no"] as const).map((t) => (
+                  <button key={t} onClick={() => setBetType(t)} style={{
+                    padding: "10px 0", borderRadius: 9, fontSize: 13, fontWeight: 700,
+                    cursor: "pointer", border: "none",
+                    background: betType === t ? (t === "yes" ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)") : "transparent",
+                    color: betType === t ? (t === "yes" ? "#34d399" : "#f87171") : "#6b7280",
+                  }}>{t === "yes" ? "Buy Yes" : "Buy No"}</button>
+                ))}
+              </div>
+
+              <p style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Amount</p>
+              <div style={{ position: "relative", marginBottom: 8 }}>
+                <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#6b7280", fontSize: 16, fontWeight: 600, pointerEvents: "none" }}>$</span>
+                <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0"
+                  style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, paddingLeft: 30, paddingRight: 14, paddingTop: 13, paddingBottom: 13, color: "#fff", fontSize: 20, fontWeight: 700, outline: "none" }}
+                />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 16 }}>
+                {["10", "25", "50", "100"].map((v) => (
+                  <button key={v} onClick={() => setAmount(v)} style={{
+                    padding: "8px 0", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    background: amount === v ? "rgba(255,255,255,0.08)" : "transparent",
+                    color: amount === v ? "#fff" : "#6b7280",
+                  }}>${v}</button>
+                ))}
+              </div>
+
+              {estimatedShares && (
+                <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 12, padding: "12px 14px", marginBottom: 16 }}>
+                  {[{ label: "Shares", value: estimatedShares }, { label: "Avg price", value: `${(prob / 100).toFixed(2)}¢` }].map((row) => (
+                    <div key={row.label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, color: "#6b7280" }}>{row.label}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{row.value}</span>
+                    </div>
+                  ))}
+                  <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "8px 0" }} />
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 12, color: "#6b7280" }}>Potential profit</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>+${potentialProfit}</span>
+                  </div>
+                </div>
+              )}
+
+              {tradeStatus === "success" ? (
+                <div style={{ textAlign: "center", padding: "14px 0", borderRadius: 14, background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399", fontSize: 13, fontWeight: 600 }}>
+                  ✓ {tradeMessage}
+                </div>
+              ) : (
+                <button onClick={handleTrade} disabled={tradeStatus === "loading"} style={{
+                  width: "100%", padding: "15px 0", borderRadius: 14, fontSize: 15, fontWeight: 700,
+                  cursor: tradeStatus === "loading" ? "not-allowed" : "pointer", border: "none",
+                  opacity: tradeStatus === "loading" ? 0.65 : 1,
+                  background: authenticated ? (isYes ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)") : "rgba(255,255,255,0.09)",
+                  color: "#fff",
+                  boxShadow: tradeStatus === "loading" || !authenticated ? "none" : isYes ? "0 4px 24px rgba(16,185,129,0.3)" : "0 4px 24px rgba(239,68,68,0.3)",
+                }}>
+                  {tradeStatus === "loading" ? "Placing…" : authenticated ? `${isYes ? "Buy Yes" : "Buy No"} · ${activeOpt.label}` : "Sign in to trade"}
+                </button>
+              )}
+              {tradeStatus === "error" && <p style={{ textAlign: "center", fontSize: 11, color: "#f87171", marginTop: 8 }}>{tradeMessage}</p>}
+              {tradeStatus === "idle" && !authenticated && <p style={{ textAlign: "center", fontSize: 11, color: "#4b5563", marginTop: 10 }}>Click to sign in and place a trade</p>}
+            </>)}
+
+            {/* SELL MODE */}
+            {panelMode === "sell" && (
+              positionLoading ? (
+                <div style={{ display: "flex", justifyContent: "center", padding: "24px 0" }}>
+                  <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.1)", borderTopColor: "rgba(255,255,255,0.5)", animation: "spin 0.8s linear infinite" }} />
+                </div>
+              ) : !holdingAny ? (
+                <p style={{ textAlign: "center", fontSize: 13, color: "#6b7280", padding: "20px 0" }}>You don&apos;t hold any shares in this market</p>
+              ) : (<>
+                <p style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Sell side</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 4, gap: 4, marginBottom: sideHint ? 6 : 16 }}>
+                  {([["YES", holdingYes], ["NO", holdingNo]] as const).map(([s, holds]) => (
+                    <button key={s} onClick={() => {
+                      if (holds) { setSellSide(s); setSideHint(null); setSellIsMax(false); setSellDollars(""); }
+                      else { setSideHint(`You don't hold any ${s} shares in this market`); }
+                    }} style={{
+                      padding: "10px 0", borderRadius: 9, fontSize: 13, fontWeight: 700,
+                      cursor: holds ? "pointer" : "default", border: "none",
+                      opacity: holds ? 1 : 0.3,
+                      background: sellSide === s && holds ? (s === "YES" ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)") : "transparent",
+                      color: sellSide === s && holds ? (s === "YES" ? "#34d399" : "#f87171") : "#6b7280",
+                    }}>{s}</button>
+                  ))}
+                </div>
+                {sideHint && <p style={{ fontSize: 11, color: "#f87171", marginBottom: 12 }}>{sideHint}</p>}
+
+                {sideCents <= 0 ? (
+                  <p style={{ textAlign: "center", fontSize: 13, color: "#f87171", padding: "12px 0" }}>Price unavailable — try again</p>
+                ) : (<>
+                  <p style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>$ amount to receive</p>
+                  <div style={{ position: "relative", marginBottom: 6 }}>
+                    <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#6b7280", fontSize: 16, fontWeight: 600, pointerEvents: "none" }}>$</span>
+                    <input type="number" value={sellDollars} onChange={(e) => { setSellDollars(e.target.value); setSellIsMax(false); }} placeholder="0"
+                      style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, paddingLeft: 30, paddingRight: 70, paddingTop: 13, paddingBottom: 13, color: "#fff", fontSize: 20, fontWeight: 700, outline: "none" }}
+                    />
+                    <button onClick={() => { setSellDollars(maxDollarsDisplay); setSellIsMax(true); }}
+                      style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 700, color: "#34d399", background: "rgba(52,211,153,0.12)", border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer" }}>
+                      Max
+                    </button>
+                  </div>
+                  <p style={{ fontSize: 11, color: "#6b7280", marginBottom: estShares > 0 ? 4 : 12 }}>≈ ${maxDollarsDisplay} available · {maxShares.toFixed(2)} shares</p>
+                  {estShares > 0 && <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>≈ {estShares.toFixed(2)} shares to sell</p>}
+                  <p style={{ fontSize: 10, color: "#4b5563", marginBottom: 16 }}>Approximate — final amount depends on price at execution</p>
+
+                  {sellStatus === "success" ? (
+                    <div style={{ textAlign: "center", padding: "14px 0", borderRadius: 14, background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399", fontSize: 13, fontWeight: 600 }}>
+                      ✓ {sellMessage}
+                    </div>
+                  ) : (
+                    <button onClick={handleSell} disabled={sellStatus === "loading"} style={{
+                      width: "100%", padding: "15px 0", borderRadius: 14, fontSize: 15, fontWeight: 700,
+                      cursor: sellStatus === "loading" ? "not-allowed" : "pointer", border: "none",
+                      opacity: sellStatus === "loading" ? 0.65 : 1,
+                      background: authenticated ? (sellSide === "YES" ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)") : "rgba(255,255,255,0.09)",
+                      color: "#fff",
+                      boxShadow: sellStatus === "loading" || !authenticated ? "none" : sellSide === "YES" ? "0 4px 24px rgba(16,185,129,0.3)" : "0 4px 24px rgba(239,68,68,0.3)",
+                    }}>
+                      {sellStatus === "loading" ? "Selling…" : authenticated ? `Sell ${sellSide}` : "Sign in to sell"}
+                    </button>
+                  )}
+                  {sellStatus === "error" && <p style={{ textAlign: "center", fontSize: 11, color: "#f87171", marginTop: 8 }}>{sellMessage}</p>}
+                </>)}
+              </>)
+            )}
           </div>
         )}
       </div>
@@ -323,103 +426,208 @@ function MobileBetSheet({
 
 // ─── Desktop Bet Panel ────────────────────────────────────────────────────────
 
-function DesktopBetPanel({ market, activeOption, setActiveOption, betType, setBetType, amount, setAmount, estimatedShares, potentialProfit, prob, router, relatedMarkets, isDone, doneLabel }: any) {
-  const activeOpt = market.options[activeOption];
-  const isYes = betType === "yes";
+function DesktopBetPanel({ market, activeOption, setActiveOption, betType, setBetType, amount, setAmount, estimatedShares, potentialProfit, prob, router, relatedMarkets, handleTrade, tradeStatus, tradeMessage, authenticated, panelMode, setPanelMode, sellSide, setSellSide, sellDollars, setSellDollars, sellIsMax, setSellIsMax, userPosition, positionLoading, handleSell, sellStatus, sellMessage }: any) {
+  const [sideHint, setSideHint] = useState<string | null>(null);
+  const activeOpt  = market.options[activeOption];
+  const isYes      = betType === "yes";
+  const holdingYes = (userPosition?.yesShares ?? 0) > 0;
+  const holdingNo  = (userPosition?.noShares  ?? 0) > 0;
+  const holdingAny = holdingYes || holdingNo;
+  const maxShares  = sellSide === "YES" ? (userPosition?.yesShares ?? 0) : (userPosition?.noShares ?? 0);
+  const sideCents  = (market.options.find((o: any) => o.label.toLowerCase() === (sellSide === "YES" ? "yes" : "no"))?.probability ?? 0) as number;
+  const maxDollars = sideCents > 0 ? maxShares * (sideCents / 100) : 0;
+  const maxDollarsDisplay = (Math.floor(maxDollars * 100) / 100).toFixed(2);
+  const estShares  = sideCents > 0 && Number(sellDollars) > 0 ? Number(sellDollars) / (sideCents / 100) : 0;
 
   return (
     <div style={{ position: "sticky", top: 72 }}>
       <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, overflow: "hidden" }}>
-        <div style={{ padding: "18px 16px 0" }}>
-          <p style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Outcome</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {market.options.map((opt: any, idx: number) => {
-              const active = activeOption === idx;
-              return (
-                <button key={idx} onClick={() => setActiveOption(idx)} style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "12px 14px", borderRadius: 12, cursor: "pointer",
-                  border: active ? "1px solid rgba(255,255,255,0.15)" : "1px solid rgba(255,255,255,0.06)",
-                  background: active ? "rgba(255,255,255,0.07)" : "transparent",
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 16, height: 16, borderRadius: "50%", border: active ? "5px solid #fff" : "2px solid #374151", flexShrink: 0 }} />
-                    <span style={{ fontSize: 14, fontWeight: 600, color: active ? "#fff" : "#9ca3af" }}>{opt.label}</span>
-                  </div>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: opt.probability >= 50 ? "#34d399" : "#f87171" }}>{opt.probability}%</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
-        <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "16px 0" }} />
-
-        <div style={{ padding: "0 16px" }}>
-          <p style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Position</p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 4, gap: 4 }}>
-            {(["yes", "no"] as const).map((t) => (
-              <button key={t} onClick={() => setBetType(t)} style={{
-                padding: "10px 0", borderRadius: 9, fontSize: 13, fontWeight: 700,
-                cursor: "pointer", border: "none",
-                background: betType === t ? (t === "yes" ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)") : "transparent",
-                color: betType === t ? (t === "yes" ? "#34d399" : "#f87171") : "#6b7280",
-              }}>{t === "yes" ? "Buy Yes" : "Buy No"}</button>
-            ))}
-          </div>
-        </div>
-
+        {/* Buy / Sell toggle */}
         <div style={{ padding: "16px 16px 0" }}>
-          <p style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Amount</p>
-          <div style={{ position: "relative" }}>
-            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#6b7280", fontSize: 16, fontWeight: 600, pointerEvents: "none" }}>$</span>
-            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0"
-              style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, paddingLeft: 30, paddingRight: 14, paddingTop: 13, paddingBottom: 13, color: "#fff", fontSize: 20, fontWeight: 700, outline: "none" }}
-              onFocus={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.2)")}
-              onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
-            />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6, marginTop: 8 }}>
-            {["10", "25", "50", "100"].map((v) => (
-              <button key={v} onClick={() => setAmount(v)} style={{
-                padding: "7px 0", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: amount === v ? "rgba(255,255,255,0.08)" : "transparent",
-                color: amount === v ? "#fff" : "#6b7280",
-              }}>${v}</button>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 4, gap: 4 }}>
+            {(["buy", "sell"] as const).map((m) => (
+              <button key={m} onClick={() => setPanelMode(m)} style={{
+                padding: "9px 0", borderRadius: 9, fontSize: 13, fontWeight: 700,
+                cursor: "pointer", border: "none",
+                background: panelMode === m ? (m === "buy" ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)") : "transparent",
+                color: panelMode === m ? (m === "buy" ? "#34d399" : "#f87171") : "#6b7280",
+              }}>{m === "buy" ? "Buy" : "Sell"}</button>
             ))}
           </div>
         </div>
 
-        {estimatedShares && (
-          <div style={{ margin: "16px 16px 0", background: "rgba(255,255,255,0.03)", borderRadius: 12, padding: "12px 14px" }}>
-            {[{ label: "Shares", value: estimatedShares }, { label: "Avg price", value: `${(prob / 100).toFixed(2)}¢` }].map((row) => (
-              <div key={row.label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                <span style={{ fontSize: 12, color: "#6b7280" }}>{row.label}</span>
-                <span style={{ fontSize: 12, fontWeight: 600 }}>{row.value}</span>
-              </div>
-            ))}
-            <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "8px 0" }} />
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, color: "#6b7280" }}>Potential profit</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>+${potentialProfit}</span>
+        {/* BUY MODE */}
+        {panelMode === "buy" && (<>
+          <div style={{ padding: "16px 16px 0" }}>
+            <p style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Outcome</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {market.options.map((opt: any, idx: number) => {
+                const active = activeOption === idx;
+                return (
+                  <button key={idx} onClick={() => setActiveOption(idx)} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "12px 14px", borderRadius: 12, cursor: "pointer",
+                    border: active ? "1px solid rgba(255,255,255,0.15)" : "1px solid rgba(255,255,255,0.06)",
+                    background: active ? "rgba(255,255,255,0.07)" : "transparent",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 16, height: 16, borderRadius: "50%", border: active ? "5px solid #fff" : "2px solid #374151", flexShrink: 0 }} />
+                      <span style={{ fontSize: 14, fontWeight: 600, color: active ? "#fff" : "#9ca3af" }}>{opt.label}</span>
+                    </div>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: opt.probability >= 50 ? "#34d399" : "#f87171" }}>{opt.probability}%</span>
+                  </button>
+                );
+              })}
             </div>
+          </div>
+
+          <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "16px 0" }} />
+
+          <div style={{ padding: "0 16px" }}>
+            <p style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Position</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 4, gap: 4 }}>
+              {(["yes", "no"] as const).map((t) => (
+                <button key={t} onClick={() => setBetType(t)} style={{
+                  padding: "10px 0", borderRadius: 9, fontSize: 13, fontWeight: 700,
+                  cursor: "pointer", border: "none",
+                  background: betType === t ? (t === "yes" ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)") : "transparent",
+                  color: betType === t ? (t === "yes" ? "#34d399" : "#f87171") : "#6b7280",
+                }}>{t === "yes" ? "Buy Yes" : "Buy No"}</button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ padding: "16px 16px 0" }}>
+            <p style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Amount</p>
+            <div style={{ position: "relative" }}>
+              <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#6b7280", fontSize: 16, fontWeight: 600, pointerEvents: "none" }}>$</span>
+              <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0"
+                style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, paddingLeft: 30, paddingRight: 14, paddingTop: 13, paddingBottom: 13, color: "#fff", fontSize: 20, fontWeight: 700, outline: "none" }}
+                onFocus={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.2)")}
+                onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
+              />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6, marginTop: 8 }}>
+              {["10", "25", "50", "100"].map((v) => (
+                <button key={v} onClick={() => setAmount(v)} style={{
+                  padding: "7px 0", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: amount === v ? "rgba(255,255,255,0.08)" : "transparent",
+                  color: amount === v ? "#fff" : "#6b7280",
+                }}>${v}</button>
+              ))}
+            </div>
+          </div>
+
+          {estimatedShares && (
+            <div style={{ margin: "16px 16px 0", background: "rgba(255,255,255,0.03)", borderRadius: 12, padding: "12px 14px" }}>
+              {[{ label: "Shares", value: estimatedShares }, { label: "Avg price", value: `${(prob / 100).toFixed(2)}¢` }].map((row) => (
+                <div key={row.label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: "#6b7280" }}>{row.label}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{row.value}</span>
+                </div>
+              ))}
+              <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "8px 0" }} />
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 12, color: "#6b7280" }}>Potential profit</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>+${potentialProfit}</span>
+              </div>
+            </div>
+          )}
+
+          <div style={{ padding: 16 }}>
+            {tradeStatus === "success" ? (
+              <div style={{ textAlign: "center", padding: "14px 0", borderRadius: 14, background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399", fontSize: 13, fontWeight: 600 }}>
+                ✓ {tradeMessage}
+              </div>
+            ) : (
+              <button onClick={handleTrade} disabled={tradeStatus === "loading"} style={{
+                width: "100%", padding: "14px 0", borderRadius: 14, fontSize: 14, fontWeight: 700,
+                cursor: tradeStatus === "loading" ? "not-allowed" : "pointer", border: "none",
+                opacity: tradeStatus === "loading" ? 0.65 : 1,
+                background: authenticated ? (isYes ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)") : "rgba(255,255,255,0.09)",
+                color: "#fff",
+                boxShadow: tradeStatus === "loading" || !authenticated ? "none" : isYes ? "0 4px 24px rgba(16,185,129,0.28)" : "0 4px 24px rgba(239,68,68,0.28)",
+              }}>
+                {tradeStatus === "loading" ? "Placing…" : authenticated ? `${isYes ? "Buy Yes" : "Buy No"} · ${activeOpt.label}` : "Sign in to trade"}
+              </button>
+            )}
+            {tradeStatus === "error" && <p style={{ textAlign: "center", fontSize: 11, color: "#f87171", marginTop: 8 }}>{tradeMessage}</p>}
+            {tradeStatus === "idle" && !authenticated && <p style={{ textAlign: "center", fontSize: 11, color: "#4b5563", marginTop: 10 }}>Click to sign in and place a trade</p>}
+          </div>
+        </>)}
+
+        {/* SELL MODE */}
+        {panelMode === "sell" && (
+          <div style={{ padding: 16 }}>
+            {positionLoading ? (
+              <div style={{ display: "flex", justifyContent: "center", padding: "24px 0" }}>
+                <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.1)", borderTopColor: "rgba(255,255,255,0.5)", animation: "spin 0.8s linear infinite" }} />
+              </div>
+            ) : !holdingAny ? (
+              <p style={{ textAlign: "center", fontSize: 13, color: "#6b7280", padding: "20px 0" }}>You don&apos;t hold any shares in this market</p>
+            ) : (<>
+              {/* Side selector — always show, disabled sides are greyed */}
+              <p style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Sell side</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 4, gap: 4, marginBottom: sideHint ? 6 : 16 }}>
+                {([["YES", holdingYes], ["NO", holdingNo]] as const).map(([s, holds]) => (
+                  <button key={s} onClick={() => {
+                    if (holds) { setSellSide(s); setSideHint(null); setSellIsMax(false); setSellDollars(""); }
+                    else { setSideHint(`You don't hold any ${s} shares in this market`); }
+                  }} style={{
+                    padding: "10px 0", borderRadius: 9, fontSize: 13, fontWeight: 700,
+                    cursor: holds ? "pointer" : "default", border: "none",
+                    opacity: holds ? 1 : 0.3,
+                    background: sellSide === s && holds ? (s === "YES" ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)") : "transparent",
+                    color: sellSide === s && holds ? (s === "YES" ? "#34d399" : "#f87171") : "#6b7280",
+                  }}>{s}</button>
+                ))}
+              </div>
+              {sideHint && <p style={{ fontSize: 11, color: "#f87171", marginBottom: 12 }}>{sideHint}</p>}
+
+              {sideCents <= 0 ? (
+                <p style={{ textAlign: "center", fontSize: 13, color: "#f87171", padding: "12px 0" }}>Price unavailable — try again</p>
+              ) : (<>
+                <p style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>$ amount to receive</p>
+                <div style={{ position: "relative", marginBottom: 6 }}>
+                  <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#6b7280", fontSize: 16, fontWeight: 600, pointerEvents: "none" }}>$</span>
+                  <input type="number" value={sellDollars} onChange={(e) => { setSellDollars(e.target.value); setSellIsMax(false); }} placeholder="0"
+                    style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, paddingLeft: 30, paddingRight: 70, paddingTop: 13, paddingBottom: 13, color: "#fff", fontSize: 20, fontWeight: 700, outline: "none" }}
+                    onFocus={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.2)")}
+                    onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
+                  />
+                  <button onClick={() => { setSellDollars(maxDollarsDisplay); setSellIsMax(true); }}
+                    style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 700, color: "#34d399", background: "rgba(52,211,153,0.12)", border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer" }}>
+                    Max
+                  </button>
+                </div>
+                <p style={{ fontSize: 11, color: "#6b7280", marginBottom: estShares > 0 ? 4 : 12 }}>≈ ${maxDollarsDisplay} available · {maxShares.toFixed(2)} shares</p>
+                {estShares > 0 && <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>≈ {estShares.toFixed(2)} shares to sell</p>}
+                <p style={{ fontSize: 10, color: "#4b5563", marginBottom: 16 }}>Approximate — final amount depends on price at execution</p>
+
+                {sellStatus === "success" ? (
+                  <div style={{ textAlign: "center", padding: "14px 0", borderRadius: 14, background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399", fontSize: 13, fontWeight: 600 }}>
+                    ✓ {sellMessage}
+                  </div>
+                ) : (
+                  <button onClick={handleSell} disabled={sellStatus === "loading"} style={{
+                    width: "100%", padding: "14px 0", borderRadius: 14, fontSize: 14, fontWeight: 700,
+                    cursor: sellStatus === "loading" ? "not-allowed" : "pointer", border: "none",
+                    opacity: sellStatus === "loading" ? 0.65 : 1,
+                    background: authenticated ? (sellSide === "YES" ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)") : "rgba(255,255,255,0.09)",
+                    color: "#fff",
+                    boxShadow: sellStatus === "loading" || !authenticated ? "none" : sellSide === "YES" ? "0 4px 24px rgba(16,185,129,0.28)" : "0 4px 24px rgba(239,68,68,0.28)",
+                  }}>
+                    {sellStatus === "loading" ? "Selling…" : authenticated ? `Sell ${sellSide}` : "Sign in to sell"}
+                  </button>
+                )}
+                {sellStatus === "error" && <p style={{ textAlign: "center", fontSize: 11, color: "#f87171", marginTop: 8 }}>{sellMessage}</p>}
+              </>)}
+            </>)}
           </div>
         )}
 
-        <div style={{ padding: 16 }}>
-          <button disabled={isDone} style={{
-            width: "100%", padding: "14px 0", borderRadius: 14, fontSize: 14, fontWeight: 700,
-            cursor: isDone ? "not-allowed" : "pointer", border: "none",
-            background: isDone ? "#374151" : isYes ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)",
-            color: isDone ? "#6b7280" : "#fff",
-            boxShadow: isDone ? "none" : isYes ? "0 4px 24px rgba(16,185,129,0.28)" : "0 4px 24px rgba(239,68,68,0.28)",
-            opacity: isDone ? 0.7 : 1,
-          }}>
-            {isDone ? doneLabel : `${isYes ? "Buy Yes" : "Buy No"} · ${activeOpt.label}`}
-          </button>
-          {!isDone && <p style={{ textAlign: "center", fontSize: 11, color: "#4b5563", marginTop: 10 }}>Connect wallet to place a bet</p>}
-        </div>
       </div>
 
       {relatedMarkets.length > 0 && (
@@ -443,6 +651,23 @@ function DesktopBetPanel({ market, activeOption, setActiveOption, betType, setBe
   );
 }
 
+// ─── Trade ────────────────────────────────────────────────────────────────────
+
+const TRADE_ERRORS: Record<string, string> = {
+  INSUFFICIENT_BALANCE: "Not enough balance",
+  MARKET_NOT_FOUND:     "Market not found",
+  MARKET_NOT_ACTIVE:    "Market is closed",
+  NO_PRICE:             "Price unavailable — try again",
+  INSUFFICIENT_SHARES:  "Not enough shares to sell",
+};
+
+const SELL_ERRORS: Record<string, string> = {
+  INSUFFICIENT_SHARES: "You don't have that many shares",
+  MARKET_NOT_FOUND:    "Market not found",
+  MARKET_RESOLVED:     "Market is already resolved",
+  NO_PRICE:            "Price unavailable — try again",
+};
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MarketPage() {
@@ -450,6 +675,9 @@ export default function MarketPage() {
   const router    = useRouter();
   const slug      = params.slug as string;
   const isMobile  = useIsMobile();
+
+  const { authenticated, refetchUser } = useAuth();
+  const { getAccessToken, login }      = usePrivy();
 
   const [market,       setMarket]       = useState<MappedMarket | null>(null);
   const [notFound,     setNotFound]     = useState(false);
@@ -470,15 +698,186 @@ export default function MarketPage() {
   const [livePriceHistory, setLivePriceHistory] = useState<Array<{ date: string; probability: number }>>([]);
   const [marketTags,     setMarketTags]     = useState<string[]>([]);
   const [relatedMarkets, setRelatedMarkets] = useState<RelatedMarket[]>([]);
+  const [tradeStatus,    setTradeStatus]    = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [tradeMessage,   setTradeMessage]   = useState("");
+  const [marketSlug,     setMarketSlug]     = useState("");
+  const [panelMode,      setPanelMode]      = useState<"buy" | "sell">("buy");
+  const [sellSide,       setSellSide]       = useState<"YES" | "NO">("YES");
+  const [sellDollars,    setSellDollars]    = useState("");
+  const [sellIsMax,      setSellIsMax]      = useState(false);
+  const [userPosition,   setUserPosition]   = useState<{ yesShares: number; noShares: number; yesSharesMicro: number; noSharesMicro: number } | null>(null);
+  const [positionLoading, setPositionLoading] = useState(false);
+  const [sellStatus,     setSellStatus]     = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [sellMessage,    setSellMessage]    = useState("");
   const rangeRef = useRef<Range>(range);
   rangeRef.current = range;
+
+  const fetchPosition = useCallback(async () => {
+    if (!authenticated || !market) return;
+    setPositionLoading(true);
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`${API_BASE}/api/positions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const positions: { conditionId: string; yesShares: number; noShares: number }[] = await res.json();
+      const pos = positions.find((p) => p.conditionId === market.id) ?? null;
+      setUserPosition(pos ? {
+        yesShares:     pos.yesShares,
+        noShares:      pos.noShares,
+        yesSharesMicro: Math.round(pos.yesShares * 1_000_000),
+        noSharesMicro:  Math.round(pos.noShares  * 1_000_000),
+      } : null);
+    } catch {} finally {
+      setPositionLoading(false);
+    }
+  }, [authenticated, market, getAccessToken]);
+
+  const handleTrade = useCallback(async () => {
+    if (!market) return;
+    if (!authenticated) { login(); return; }
+    const amtNum = Number(amount);
+    if (!amtNum || amtNum <= 0) {
+      setTradeStatus("error");
+      setTradeMessage("Enter an amount greater than $0");
+      return;
+    }
+    setTradeStatus("loading");
+    setTradeMessage("");
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`${API_BASE}/api/trades`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          conditionId: market.id,
+          side:        betType === "yes" ? "YES" : "NO",
+          amount:      Math.round(amtNum * 1_000_000),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTradeStatus("error");
+        setTradeMessage(TRADE_ERRORS[data.code] ?? data.error ?? "Trade failed");
+        return;
+      }
+      const sharesStr = data.shares    != null ? ` · ${Number(data.shares).toFixed(2)} shares`            : "";
+      const priceStr  = data.entryPrice != null ? ` at ${(data.entryPrice / 10).toFixed(1)}¢` : "";
+      setTradeStatus("success");
+      setTradeMessage(`Bought${sharesStr}${priceStr}`);
+      setAmount("");
+      refetchUser();
+      fetchPosition();
+      setTimeout(() => setTradeStatus("idle"), 4000);
+    } catch {
+      setTradeStatus("error");
+      setTradeMessage("Network error — try again");
+    }
+  }, [market, authenticated, login, getAccessToken, amount, betType, refetchUser, fetchPosition]);
+
+  const handleSell = useCallback(async () => {
+    if (!market) return;
+    if (!authenticated) { login(); return; }
+
+    const maxSh    = sellSide === "YES" ? (userPosition?.yesShares    ?? 0) : (userPosition?.noShares    ?? 0);
+    const maxMicro = sellSide === "YES" ? (userPosition?.yesSharesMicro ?? 0) : (userPosition?.noSharesMicro ?? 0);
+
+    let sharesToSell: number;
+    let microShares: number;
+
+    if (sellIsMax) {
+      // Bypass dollar round-trip: sell exactly the held shares
+      sharesToSell = maxSh;
+      microShares  = maxMicro;
+    } else {
+      const dollarsNum = Number(sellDollars);
+      if (!dollarsNum || dollarsNum <= 0) {
+        setSellStatus("error");
+        setSellMessage("Enter a dollar amount greater than $0");
+        return;
+      }
+      const sideOpt = market.options.find((o: { label: string }) =>
+        o.label.toLowerCase() === (sellSide === "YES" ? "yes" : "no")
+      );
+      const sideCents = sideOpt?.probability ?? 0;
+      if (sideCents <= 0) {
+        setSellStatus("error");
+        setSellMessage("Price unavailable — try again");
+        return;
+      }
+      const uncappedShares = dollarsNum / (sideCents / 100);
+      if (uncappedShares > maxSh + 0.001) {
+        setSellStatus("error");
+        setSellMessage("Amount exceeds available position");
+        return;
+      }
+      sharesToSell = Math.min(maxSh, uncappedShares);
+      microShares  = Math.min(maxMicro, Math.round(sharesToSell * 1_000_000));
+    }
+
+    setSellStatus("loading");
+    setSellMessage("");
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`${API_BASE}/api/trades/sell`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ conditionId: market.id, side: sellSide, shares: microShares }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSellStatus("error");
+        setSellMessage(SELL_ERRORS[data.code] ?? data.error ?? "Sell failed");
+        return;
+      }
+      const proceedsStr = data.proceeds != null ? ` for $${Number(data.proceeds).toFixed(2)}` : "";
+      setSellStatus("success");
+      setSellMessage(`Sold ~${sharesToSell.toFixed(2)} shares${proceedsStr}`);
+      setSellDollars("");
+      setSellIsMax(false);
+      await fetchPosition();
+      refetchUser();
+      setTimeout(() => setSellStatus("idle"), 4000);
+    } catch {
+      setSellStatus("error");
+      setSellMessage("Network error — try again");
+    }
+  }, [market, authenticated, login, getAccessToken, sellDollars, sellIsMax, sellSide, userPosition, fetchPosition, refetchUser]);
+
+  useEffect(() => { fetchPosition(); }, [fetchPosition]);
+
+  // Refresh positions when entering sell mode so holdings are always current
+  useEffect(() => {
+    if (panelMode === "sell") fetchPosition();
+  }, [panelMode, fetchPosition]);
+
+  // Auto-select sell side to whichever the user holds when position data arrives
+  useEffect(() => {
+    if (panelMode !== "sell") return;
+    const holdingYes = (userPosition?.yesShares ?? 0) > 0;
+    const holdingNo  = (userPosition?.noShares  ?? 0) > 0;
+    if (!holdingYes && holdingNo) setSellSide("NO");
+    else if (holdingYes) setSellSide("YES");
+  }, [panelMode, userPosition]);
+
+  // Reset status messages when switching buy/sell mode
+  useEffect(() => {
+    setTradeStatus("idle"); setTradeMessage("");
+    setSellStatus("idle");  setSellMessage("");
+  }, [panelMode]);
 
   // Fetch market detail
   useEffect(() => {
     setMarket(null);
     setNotFound(false);
     setLoadError(false);
-    fetch(`${API_BASE}/api/markets/by-slug/${slug}`)
+    setTradeStatus("idle");
+    setTradeMessage("");
+    const marketUrl = isConditionId(slug)
+      ? `${API_BASE}/api/markets/${slug}`
+      : `${API_BASE}/api/markets/by-slug/${slug}`;
+    fetch(marketUrl)
       .then((r) => {
         if (r.status === 404) { setNotFound(true); return null; }
         if (!r.ok) throw new Error();
@@ -488,6 +887,7 @@ export default function MarketPage() {
         if (data) {
           setMarket(mapMarket(data));
           setMarketTags(data.tags ?? []);
+          setMarketSlug(data.slug ?? "");
         }
       })
       .catch(() => setLoadError(true));
@@ -500,7 +900,10 @@ export default function MarketPage() {
     setChartLoading(true);
     setChartData([]);
     setOhlcData([]);
-    fetch(`${API_BASE}/api/markets/by-slug/${slug}/history?range=${apiRange}`)
+    const historyUrl = isConditionId(slug)
+      ? `${API_BASE}/api/markets/${slug}/history?range=${apiRange}`
+      : `${API_BASE}/api/markets/by-slug/${slug}/history?range=${apiRange}`;
+    fetch(historyUrl)
       .then((r) => r.ok ? r.json() : { points: [], shape: "line" })
       .then((data: { points: ApiChartPoint[]; shape?: ChartShape }) => {
         const shape = data.shape ?? "line";
@@ -531,10 +934,10 @@ export default function MarketPage() {
     fetch(`${API_BASE}/api/markets?category=${encodeURIComponent(tag)}&sort=volume&limit=4&includeResolved=false`)
       .then((r) => r.ok ? r.json() : { items: [] })
       .then((data: { items: RelatedMarket[] }) => {
-        setRelatedMarkets((data.items ?? []).filter((m) => m.slug !== slug).slice(0, 3));
+        setRelatedMarkets((data.items ?? []).filter((m) => m.slug !== marketSlug).slice(0, 3));
       })
       .catch(() => setRelatedMarkets([]));
-  }, [marketTags, slug]);
+  }, [marketTags, marketSlug]);
 
   // Live price WebSocket — subscribes once the market loads, reconnects on drop
   useEffect(() => {
@@ -551,7 +954,9 @@ export default function MarketPage() {
 
       ws.onopen = () => {
         backoff = 1000;
-        ws!.send(JSON.stringify({ action: 'subscribe', slug }));
+        ws!.send(JSON.stringify(
+          isConditionId(slug) ? { action: 'subscribe', conditionId: slug } : { action: 'subscribe', slug }
+        ));
       };
 
       ws.onmessage = (ev) => {
@@ -620,7 +1025,9 @@ export default function MarketPage() {
       if (ws) {
         ws.onclose = null;
         if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ action: 'unsubscribe', slug }));
+          ws.send(JSON.stringify(
+            isConditionId(slug) ? { action: 'unsubscribe', conditionId: slug } : { action: 'unsubscribe', slug }
+          ));
         }
         ws.close();
       }

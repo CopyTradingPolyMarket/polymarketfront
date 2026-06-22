@@ -243,12 +243,20 @@ export default function Navbar() {
           {/* Right actions */}
           <div className="flex items-center gap-2 shrink-0">
             {authenticated ? (
-              <button
-                onClick={() => logout()}
-                className="px-3 py-1.5 text-[13px] text-gray-300 hover:text-white transition-colors rounded-lg hover:bg-[#1a1b1e] cursor-pointer"
-              >
-                Log out
-              </button>
+              <>
+                <Link
+                  href="/profile"
+                  className="px-3 py-1.5 text-[13px] text-gray-300 hover:text-white transition-colors rounded-lg hover:bg-[#1a1b1e] hidden sm:block"
+                >
+                  Profile
+                </Link>
+                <button
+                  onClick={() => logout()}
+                  className="px-3 py-1.5 text-[13px] text-gray-300 hover:text-white transition-colors rounded-lg hover:bg-[#1a1b1e] cursor-pointer"
+                >
+                  Log out
+                </button>
+              </>
             ) : (
               <>
                 <button
