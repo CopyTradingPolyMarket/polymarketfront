@@ -11,6 +11,7 @@ import CandlestickChart from "@/src/components/CandlestickChart";
 import type { OhlcPoint } from "@/src/components/CandlestickChart";
 import LiveCryptoChart from "@/src/components/LiveCryptoChart";
 import Comments from "@/src/components/Comments";
+import { formatLiveCryptoTitle } from "@/lib/liveCryptoTitle";
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 
@@ -86,26 +87,6 @@ function formatChartDate(iso: string, range: ApiRange): string {
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", hour12: false });
   }
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-const SLUG_PREFIX_TO_TICKER: Record<string, string> = {
-  btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP',
-  bitcoin: 'BTC', ethereum: 'ETH', solana: 'SOL',
-};
-
-function formatLiveCryptoTitle(slug: string): string | null {
-  const prefix = slug.split('-')[0].toLowerCase();
-  const ticker = SLUG_PREFIX_TO_TICKER[prefix];
-  if (!ticker) return null;
-  const m = slug.match(/-updown-(\d+)m-/);
-  if (m) {
-    const n = parseInt(m[1]);
-    const dur = n >= 60 && n % 60 === 0 ? `${n / 60}h` : `${n}m`;
-    return `${ticker} Up or Down ${dur}`;
-  }
-  if (/-up-or-down-on-/.test(slug)) return `${ticker} Up or Down Daily`;
-  if (/-up-or-down-/.test(slug)) return `${ticker} Up or Down`;
-  return null;
 }
 
 interface MappedMarket extends Market {

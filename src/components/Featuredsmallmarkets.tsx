@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import SmallMarketCard from "./Marketcard";
 import type { Market } from "./Marketcard";
+import { formatLiveCryptoTitle } from "@/lib/liveCryptoTitle";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -33,7 +34,7 @@ function formatVolume(v: number): string {
 function mapMarket(api: ApiMarket): Market {
   return {
     id:      api.id,
-    title:   api.title,
+    title:   (api.slug && formatLiveCryptoTitle(api.slug)) ?? api.title,
     image:   api.image ?? "",
     volume:  formatVolume(api.volume),
     options: api.options,
