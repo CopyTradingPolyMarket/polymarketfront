@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation";
 import {
   AreaChart, Area, XAxis, YAxis,
-  Tooltip, ResponsiveContainer,
+  Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import { Market } from "@/types/market";
 import CandlestickChart from "@/src/components/CandlestickChart";
@@ -29,6 +29,7 @@ interface ApiMarketDetail {
   outcome: number | null;
   isLiveCrypto?: boolean;
   spot?: { symbol: string; value: number } | null;
+  line?: number | null;
   eventId: string;
 }
 
@@ -89,6 +90,7 @@ function formatChartDate(iso: string, range: ApiRange): string {
 interface MappedMarket extends Market {
   isLiveCrypto: boolean;
   spot: { symbol: string; value: number } | null;
+  priceToBeat: number | null;
 }
 
 function mapMarket(api: ApiMarketDetail): MappedMarket {
@@ -100,6 +102,7 @@ function mapMarket(api: ApiMarketDetail): MappedMarket {
     options: api.options,
     isLiveCrypto: api.isLiveCrypto ?? false,
     spot: api.spot ?? null,
+    priceToBeat: api.line ?? null,
     eventId: api.eventId,
   };
 }
@@ -903,6 +906,14 @@ export default function MarketPage() {
                             </div>
                           );
                         }} />
+                        {market.priceToBeat != null && (
+                          <ReferenceLine
+                            y={market.priceToBeat}
+                            stroke="#6b7280"
+                            strokeDasharray="6 3"
+                            label={{ value: `Beat: $${market.priceToBeat.toLocaleString()}`, fill: "#6b7280", fontSize: 9, position: "right" }}
+                          />
+                        )}
                         <Area type="monotone" dataKey="value" stroke="#34d399" strokeWidth={2} fill="url(#spotGrad)" dot={false} activeDot={{ r: 3, strokeWidth: 0 }} />
                       </AreaChart>
                     </ResponsiveContainer>
