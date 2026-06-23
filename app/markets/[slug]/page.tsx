@@ -13,7 +13,6 @@ import { useAuth } from "@/src/providers/AuthProvider";
 import { usePrivy } from "@privy-io/react-auth";
 import LiveCryptoChart from "@/src/components/LiveCryptoChart";
 import { formatLiveCryptoTitle } from "@/lib/liveCryptoTitle";
-import { slugify } from "@/lib/slugify";
 import Comments from "@/src/components/Comments";
 
 // ─── API ──────────────────────────────────────────────────────────────────────
@@ -1178,8 +1177,7 @@ export default function MarketPage() {
     : isLocked ? "Market Locked"
     : "Market Closed";
 
-  const sharedPanelProps = { market: effectiveMarket, activeOption, setActiveOption, betType, setBetType, amount, setAmount, estimatedShares, potentialProfit, prob, router, isDone, doneLabel };
-
+  const sharedPanelProps = { market: effectiveMarket, activeOption, setActiveOption, betType, setBetType, amount, setAmount, estimatedShares, potentialProfit, prob, router, handleTrade, tradeStatus, tradeMessage, authenticated, panelMode, setPanelMode, sellSide, setSellSide, sellDollars, setSellDollars, sellIsMax, setSellIsMax, userPosition, positionLoading, handleSell, sellStatus, sellMessage };
   return (
     <div style={{ minHeight: "100vh", background: "#09090b", color: "#fff", fontFamily: "'DM Sans','Helvetica Neue',sans-serif" }}>
 
