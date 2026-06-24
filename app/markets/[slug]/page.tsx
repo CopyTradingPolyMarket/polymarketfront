@@ -35,6 +35,8 @@ interface ApiMarketDetail {
   spot?: { symbol: string; value: number } | null;
   line?: number | null;
   eventId: string;
+  gameId?: number | null;
+  sportsMarketType?: string | null;
 }
 
 interface ApiChartPoint {
@@ -884,6 +886,10 @@ export default function MarketPage() {
       })
       .then((data) => {
         if (data) {
+          if (data.gameId && data.sportsMarketType) {
+            router.replace(`/sports/${data.gameId}`);
+            return;
+          }
           setMarket(mapMarket(data));
           setMarketTags(data.tags ?? []);
           setMarketSlug(data.slug ?? "");

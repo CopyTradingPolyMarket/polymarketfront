@@ -189,17 +189,15 @@ export default function GameCard({ game, showColumns }: { game: Game; showColumn
   const totalVol = game.markets.reduce((s, m) => s + (m.volume || 0), 0);
 
   const handleClick = () => {
-    if (firstSlug) router.push(`/markets/${firstSlug}`);
+    router.push(`/sports/${game.gameId}`);
   };
 
   return (
     <div
       onClick={handleClick}
-      role={firstSlug ? "button" : undefined}
-      tabIndex={firstSlug ? 0 : undefined}
-      className={`rounded-xl border border-white/[0.06] bg-[#111113] px-4 py-3 transition-all duration-150 ${
-        firstSlug ? "cursor-pointer hover:border-white/[0.12] hover:bg-[#151518]" : ""
-      }`}
+      role="button"
+      tabIndex={0}
+      className="rounded-xl border border-white/[0.06] bg-[#111113] px-4 py-3 transition-all duration-150 cursor-pointer hover:border-white/[0.12] hover:bg-[#151518]"
     >
       <div className="flex items-center gap-4">
         {/* Left: teams + score */}
