@@ -186,8 +186,7 @@ export default function MarketsList() {
   const urlSort     = searchParams.get("sort")     ?? "";
   const urlSearch   = searchParams.get("search")   ?? "";
   const apiSort     = urlSort === "breaking" ? "movers" : (urlSort || "volume");
-
-  if (urlCategory === "Live Sports") return <LiveSportsList />;
+  const isLiveSports = urlCategory === "Live Sports";
 
   const [markets,     setMarkets]     = useState<Market[]>([]);
   const [loading,     setLoading]     = useState(true);
@@ -212,6 +211,8 @@ export default function MarketsList() {
     // 1 this setState is a no-op and causes no extra re-render.
     const pageToFetch = filterChanged ? 1 : currentPage;
     if (filterChanged && currentPage !== 1) setCurrentPage(1);
+
+    if (isLiveSports) { setLoading(false); return; }
 
     setLoading(true);
     setError(false);
@@ -307,6 +308,8 @@ export default function MarketsList() {
       </div>
     );
   })();
+
+  if (isLiveSports) return <LiveSportsList />;
 
   return (
     <div ref={topRef}>
