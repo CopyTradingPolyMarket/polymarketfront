@@ -19,6 +19,12 @@ interface Position {
   currentValue: number;
   unrealizedPnl: number;
   resolved: boolean;
+  yesCostBasis: number;
+  noCostBasis: number;
+  yesValue: number;
+  noValue: number;
+  yesPnl: number;
+  noPnl: number;
 }
 
 interface Trade {
@@ -148,14 +154,14 @@ export default function ProfilePage() {
             <div className="rounded-2xl bg-[#0e0f11] border border-white/[0.07] p-6 text-center text-gray-600 text-sm">No open positions</div>
           ) : (
             <div className="rounded-2xl bg-[#0e0f11] border border-white/[0.07] overflow-hidden divide-y divide-white/[0.04]">
-              {positions.map((p) => {
-                const side = p.yesShares > 0 ? "YES" : "NO";
-                const shares = side === "YES" ? p.yesShares : p.noShares;
-                const price  = side === "YES" ? p.yesPrice  : p.noPrice;
-                const pnlPos = p.unrealizedPnl >= 0;
-                return (
+              {positions.flatMap((p) => {
+                // Expand each market position into one row per held side.
+                const rows: { side: "YES" | "NO"; shares: number; price: number; cost: number; value: number; pnl: number }[] = [];
+                if (p.yesShares > 0) rows.push({ side: "YES", shares: p.yesShares, price: p.yesPrice, cost: p.yesCostBasis, value: p.yesValue, pnl: p.yesPnl });
+                if (p.noShares  > 0) rows.push({ side: "NO",  shares: p.noShares,  price: p.noPrice,  cost: p.noCostBasis, value: p.noValue,  pnl: p.noPnl  });
+                return rows.map(({ side, shares, price, cost, value, pnl }) => (
                   <Link
-                    key={p.conditionId}
+                    key={`${p.conditionId}-${side}`}
                     href={`/markets/${p.conditionId}`}
                     className="flex items-center gap-4 px-5 py-4 hover:bg-white/[0.03] transition-colors group"
                   >
@@ -185,21 +191,21 @@ export default function ProfilePage() {
                       </div>
                       <div>
                         <p className="text-[10px] text-gray-500 mb-0.5">Cost</p>
-                        <p className="text-[13px] text-white tabular-nums">${fmt(p.costBasis)}</p>
+                        <p className="text-[13px] text-white tabular-nums">${fmt(cost)}</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-gray-500 mb-0.5">Value</p>
-                        <p className="text-[13px] text-white tabular-nums">${fmt(p.currentValue)}</p>
+                        <p className="text-[13px] text-white tabular-nums">${fmt(value)}</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-gray-500 mb-0.5">P&L</p>
-                        <p className={`text-[13px] font-bold tabular-nums ${pnlPos ? "text-[#34d399]" : "text-red-400"}`}>
-                          {pnlPos ? "+" : ""}{fmt(p.unrealizedPnl)}
+                        <p className={`text-[13px] font-bold tabular-nums ${pnl >= 0 ? "text-[#34d399]" : "text-red-400"}`}>
+                          {pnl >= 0 ? "+" : ""}{fmt(pnl)}
                         </p>
                       </div>
                     </div>
                   </Link>
-                );
+                ));
               })}
             </div>
           )}

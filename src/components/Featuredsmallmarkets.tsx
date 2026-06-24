@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import SmallMarketCard from "./Marketcard";
 import type { Market } from "./Marketcard";
 import { formatLiveCryptoTitle } from "@/lib/liveCryptoTitle";
+import LiveSportsList from "./LiveSportsList";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -185,6 +186,8 @@ export default function MarketsList() {
   const urlSort     = searchParams.get("sort")     ?? "";
   const urlSearch   = searchParams.get("search")   ?? "";
   const apiSort     = urlSort === "breaking" ? "movers" : (urlSort || "volume");
+
+  if (urlCategory === "Live Sports") return <LiveSportsList />;
 
   const [markets,     setMarkets]     = useState<Market[]>([]);
   const [loading,     setLoading]     = useState(true);
