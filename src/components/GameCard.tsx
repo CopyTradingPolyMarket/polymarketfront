@@ -63,8 +63,15 @@ function formatVol(v: number): string {
   return `$${v.toFixed(0)}`;
 }
 
-export function getMoneyline(game: Game): GameMarket | null {
-  return game.markets.find((m) => m.sportsMarketType === "moneyline") ?? null;
+export function getMoneylines(game: Game): GameMarket[] {
+  return game.markets.filter((m) => m.sportsMarketType === "moneyline");
+}
+
+function extractMlLabel(title: string): string {
+  if (/\bdraw\b|\btie\b/i.test(title)) return "Draw";
+  const m = title.match(/^Will (.+?) win\b/i);
+  if (m) return m[1];
+  return title.split(":")[0].trim();
 }
 
 export function getSpread(game: Game): GameMarket | null {
@@ -96,27 +103,63 @@ function PriceBtn({ label, cents, lead }: { label: string; cents: number; lead: 
   );
 }
 
-function MarketCol({ market, homeTeam, awayTeam, type }: { market: GameMarket | null; homeTeam: string; awayTeam: string; type: "ml" | "sp" | "tot" }) {
-  if (!market || market.options.length < 2) {
+function EmptyCol() {
+  return (
+    <div className="flex gap-1 flex-1">
+      <div className="flex-1 rounded-lg px-1.5 py-1.5 text-center text-[11px] text-gray-600 bg-white/[0.02] border border-white/[0.04]">—</div>
+      <div className="flex-1 rounded-lg px-1.5 py-1.5 text-center text-[11px] text-gray-600 bg-white/[0.02] border border-white/[0.04]">—</div>
+    </div>
+  );
+}
+
+function MoneylineCol({ markets, homeTeam, awayTeam }: { markets: GameMarket[]; homeTeam: string; awayTeam: string }) {
+  if (markets.length === 0) return <EmptyCol />;
+
+  // 3-way: each market is a binary "Will X win?" / "end in draw?" — use Yes price per market
+  if (markets.length >= 3) {
+    type Outcome = { label: string; cents: number; order: number };
+    const outcomes: Outcome[] = markets.map((m) => {
+      const raw = extractMlLabel(m.title);
+      const isDraw = /\bdraw\b|\btie\b/i.test(m.title);
+      const label = isDraw ? "Draw" : abbrev(raw);
+      const cents = Math.round(m.options[0]?.probability ?? 0);
+      const order = isDraw ? 1 : m.title.toLowerCase().includes(homeTeam.toLowerCase()) ? 0 : 2;
+      return { label, cents, order };
+    });
+    outcomes.sort((a, b) => a.order - b.order);
+    const maxCents = Math.max(...outcomes.map((o) => o.cents));
     return (
       <div className="flex gap-1 flex-1">
-        <div className="flex-1 rounded-lg px-1.5 py-1.5 text-center text-[11px] text-gray-600 bg-white/[0.02] border border-white/[0.04]">—</div>
-        <div className="flex-1 rounded-lg px-1.5 py-1.5 text-center text-[11px] text-gray-600 bg-white/[0.02] border border-white/[0.04]">—</div>
+        {outcomes.map((o, i) => (
+          <PriceBtn key={i} label={o.label} cents={o.cents} lead={o.cents === maxCents && maxCents > 0} />
+        ))}
       </div>
     );
   }
+
+  // 2-way: single binary market — options[0]=Yes (home), options[1]=No (away)
+  const m = markets[0];
+  const p0 = Math.round(m.options[0]?.probability ?? 0);
+  const p1 = Math.round(m.options[1]?.probability ?? 0);
+  return (
+    <div className="flex gap-1 flex-1">
+      <PriceBtn label={abbrev(homeTeam)} cents={p0} lead={p0 > p1} />
+      <PriceBtn label={abbrev(awayTeam)} cents={p1} lead={p1 > p0} />
+    </div>
+  );
+}
+
+function SpreadTotalCol({ market, homeTeam, awayTeam, type }: { market: GameMarket | null; homeTeam: string; awayTeam: string; type: "sp" | "tot" }) {
+  if (!market || market.options.length < 2) return <EmptyCol />;
 
   const o = market.options;
   const p0 = Math.round(o[0].probability);
   const p1 = Math.round(o[1].probability);
 
-  let label0 = o[0].label;
-  let label1 = o[1].label;
+  let label0: string;
+  let label1: string;
 
-  if (type === "ml") {
-    label0 = abbrev(o[0].label === "Yes" ? homeTeam : o[0].label);
-    label1 = abbrev(o[1].label === "No" ? awayTeam : o[1].label);
-  } else if (type === "sp") {
+  if (type === "sp") {
     const line = market.line ?? 0;
     label0 = `${abbrev(o[0].label)} ${line > 0 ? "+" : ""}${line}`;
     label1 = `${abbrev(o[1].label)} ${line > 0 ? "-" : "+"}${Math.abs(line)}`;
@@ -140,7 +183,7 @@ export default function GameCard({ game, showColumns }: { game: Game; showColumn
   const label = statusLabel(game);
   const firstSlug = game.markets.find((m) => m.slug)?.slug;
 
-  const ml = getMoneyline(game);
+  const mls = getMoneylines(game);
   const sp = getSpread(game);
   const tot = getTotal(game);
   const totalVol = game.markets.reduce((s, m) => s + (m.volume || 0), 0);
@@ -185,9 +228,9 @@ export default function GameCard({ game, showColumns }: { game: Game; showColumn
         {/* Right: 3 market columns */}
         {showColumns && (
           <div className="flex-1 flex gap-2 min-w-0">
-            <MarketCol market={ml} homeTeam={game.homeTeam} awayTeam={game.awayTeam} type="ml" />
-            <MarketCol market={sp} homeTeam={game.homeTeam} awayTeam={game.awayTeam} type="sp" />
-            <MarketCol market={tot} homeTeam={game.homeTeam} awayTeam={game.awayTeam} type="tot" />
+            <MoneylineCol markets={mls} homeTeam={game.homeTeam} awayTeam={game.awayTeam} />
+            <SpreadTotalCol market={sp} homeTeam={game.homeTeam} awayTeam={game.awayTeam} type="sp" />
+            <SpreadTotalCol market={tot} homeTeam={game.homeTeam} awayTeam={game.awayTeam} type="tot" />
           </div>
         )}
       </div>
