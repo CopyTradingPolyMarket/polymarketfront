@@ -2,6 +2,21 @@
 
 import { useRouter } from "next/navigation";
 
+export interface MarketOption {
+  label: string;
+  probability: number;
+}
+
+export interface GameMarket {
+  id: string;
+  title: string;
+  slug: string | null;
+  volume: number;
+  options: MarketOption[];
+  sportsMarketType: string | null;
+  line: number | null;
+}
+
 export interface Game {
   gameId: number | string;
   league: string;
@@ -15,12 +30,11 @@ export interface Game {
   turn: string | null;
   live: boolean;
   ended: boolean;
-  markets: Array<{ slug?: string }>;
+  markets: GameMarket[];
 }
 
 function parseScore(raw: string | null): [string, string] {
   if (!raw) return ["–", "–"];
-  // Handle formats like "2-0", "112-108", "6-7(6-8), 2-3"
   const first = raw.split(",")[0].trim();
   const parts = first.split("-");
   if (parts.length >= 2) return [parts[0].trim(), parts.slice(1).join("-").trim()];
@@ -36,58 +50,146 @@ function statusLabel(g: Game): string {
   return g.live ? "Live" : g.ended ? "Ended" : "";
 }
 
-export default function GameCard({ game }: { game: Game }) {
+function abbrev(name: string): string {
+  if (name.length <= 4) return name.toUpperCase();
+  const words = name.split(/\s+/);
+  if (words.length >= 2) return words.map((w) => w[0]).join("").toUpperCase().slice(0, 3);
+  return name.slice(0, 3).toUpperCase();
+}
+
+function formatVol(v: number): string {
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}K`;
+  return `$${v.toFixed(0)}`;
+}
+
+export function getMoneyline(game: Game): GameMarket | null {
+  return game.markets.find((m) => m.sportsMarketType === "moneyline") ?? null;
+}
+
+export function getSpread(game: Game): GameMarket | null {
+  const spreads = game.markets.filter((m) => m.sportsMarketType === "spreads" && m.line !== null);
+  if (spreads.length === 0) return null;
+  spreads.sort((a, b) => Math.abs(a.line!) - Math.abs(b.line!));
+  return spreads[0];
+}
+
+export function getTotal(game: Game): GameMarket | null {
+  const totals = game.markets.filter((m) => m.sportsMarketType === "totals" && m.line !== null);
+  if (totals.length === 0) return null;
+  totals.sort((a, b) => b.volume - a.volume);
+  return totals[0];
+}
+
+function PriceBtn({ label, cents, lead }: { label: string; cents: number; lead: boolean }) {
+  return (
+    <div
+      className={`flex-1 rounded-lg px-1.5 py-1.5 text-center text-[11px] font-semibold tabular-nums leading-tight transition-colors ${
+        lead
+          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+          : "bg-white/[0.04] text-gray-400 border border-white/[0.06]"
+      }`}
+    >
+      <div className="truncate">{label}</div>
+      <div className={`text-[12px] font-bold ${lead ? "text-emerald-300" : "text-gray-300"}`}>{cents}¢</div>
+    </div>
+  );
+}
+
+function MarketCol({ market, homeTeam, awayTeam, type }: { market: GameMarket | null; homeTeam: string; awayTeam: string; type: "ml" | "sp" | "tot" }) {
+  if (!market || market.options.length < 2) {
+    return (
+      <div className="flex gap-1 flex-1">
+        <div className="flex-1 rounded-lg px-1.5 py-1.5 text-center text-[11px] text-gray-600 bg-white/[0.02] border border-white/[0.04]">—</div>
+        <div className="flex-1 rounded-lg px-1.5 py-1.5 text-center text-[11px] text-gray-600 bg-white/[0.02] border border-white/[0.04]">—</div>
+      </div>
+    );
+  }
+
+  const o = market.options;
+  const p0 = Math.round(o[0].probability);
+  const p1 = Math.round(o[1].probability);
+
+  let label0 = o[0].label;
+  let label1 = o[1].label;
+
+  if (type === "ml") {
+    label0 = abbrev(o[0].label === "Yes" ? homeTeam : o[0].label);
+    label1 = abbrev(o[1].label === "No" ? awayTeam : o[1].label);
+  } else if (type === "sp") {
+    const line = market.line ?? 0;
+    label0 = `${abbrev(o[0].label)} ${line > 0 ? "+" : ""}${line}`;
+    label1 = `${abbrev(o[1].label)} ${line > 0 ? "-" : "+"}${Math.abs(line)}`;
+  } else {
+    const line = market.line ?? 0;
+    label0 = `O ${line}`;
+    label1 = `U ${line}`;
+  }
+
+  return (
+    <div className="flex gap-1 flex-1">
+      <PriceBtn label={label0} cents={p0} lead={p0 > p1} />
+      <PriceBtn label={label1} cents={p1} lead={p1 > p0} />
+    </div>
+  );
+}
+
+export default function GameCard({ game, showColumns }: { game: Game; showColumns: boolean }) {
   const router = useRouter();
   const [homeScore, awayScore] = parseScore(game.score);
   const label = statusLabel(game);
-  const hasMarket = game.markets?.length > 0 && game.markets[0]?.slug;
+  const firstSlug = game.markets.find((m) => m.slug)?.slug;
+
+  const ml = getMoneyline(game);
+  const sp = getSpread(game);
+  const tot = getTotal(game);
+  const totalVol = game.markets.reduce((s, m) => s + (m.volume || 0), 0);
 
   const handleClick = () => {
-    if (hasMarket) router.push(`/markets/${game.markets[0].slug}`);
+    if (firstSlug) router.push(`/markets/${firstSlug}`);
   };
 
   return (
     <div
       onClick={handleClick}
-      role={hasMarket ? "button" : undefined}
-      tabIndex={hasMarket ? 0 : undefined}
-      className={`rounded-2xl border border-white/[0.06] bg-[#111113] p-4 transition-all duration-150 ${
-        hasMarket ? "cursor-pointer hover:border-white/[0.12] hover:bg-[#151518] active:scale-[0.99]" : ""
+      role={firstSlug ? "button" : undefined}
+      tabIndex={firstSlug ? 0 : undefined}
+      className={`rounded-xl border border-white/[0.06] bg-[#111113] px-4 py-3 transition-all duration-150 ${
+        firstSlug ? "cursor-pointer hover:border-white/[0.12] hover:bg-[#151518]" : ""
       }`}
     >
-      {/* Status row */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-1.5">
-          {game.live && (
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-          )}
-          <span className={`text-[11px] font-semibold uppercase tracking-wider ${game.live ? "text-red-400" : "text-gray-500"}`}>
-            {label}
-          </span>
+      <div className="flex items-center gap-4">
+        {/* Left: teams + score */}
+        <div className="w-[200px] shrink-0">
+          {/* Status pill */}
+          <div className="flex items-center gap-1.5 mb-2">
+            {game.live && <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
+            <span className={`text-[10px] font-semibold uppercase tracking-wider ${game.live ? "text-red-400" : "text-gray-600"}`}>
+              {label}
+            </span>
+            {totalVol > 0 && <span className="text-[10px] text-gray-600 ml-auto">{formatVol(totalVol)} Vol</span>}
+          </div>
+
+          {/* Home team */}
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[15px] font-bold text-white tabular-nums w-6 text-right">{homeScore}</span>
+            <span className="text-[13px] font-medium text-gray-200 truncate">{game.homeTeam}</span>
+          </div>
+          {/* Away team */}
+          <div className="flex items-center gap-2">
+            <span className="text-[15px] font-bold text-white tabular-nums w-6 text-right">{awayScore}</span>
+            <span className="text-[13px] font-medium text-gray-200 truncate">{game.awayTeam}</span>
+          </div>
         </div>
-        {!hasMarket && (
-          <span className="text-[10px] text-gray-600 uppercase tracking-wider">No markets</span>
+
+        {/* Right: 3 market columns */}
+        {showColumns && (
+          <div className="flex-1 flex gap-2 min-w-0">
+            <MarketCol market={ml} homeTeam={game.homeTeam} awayTeam={game.awayTeam} type="ml" />
+            <MarketCol market={sp} homeTeam={game.homeTeam} awayTeam={game.awayTeam} type="sp" />
+            <MarketCol market={tot} homeTeam={game.homeTeam} awayTeam={game.awayTeam} type="tot" />
+          </div>
         )}
-      </div>
-
-      {/* Teams + Score */}
-      <div className="flex items-center gap-3">
-        {/* Home */}
-        <div className="flex-1 min-w-0 text-right">
-          <p className="text-[14px] font-semibold text-gray-200 truncate">{game.homeTeam}</p>
-        </div>
-
-        {/* Score */}
-        <div className="flex items-center gap-2 px-2 shrink-0">
-          <span className="text-[22px] font-extrabold text-white tabular-nums leading-none">{homeScore}</span>
-          <span className="text-[14px] text-gray-600 font-medium">–</span>
-          <span className="text-[22px] font-extrabold text-white tabular-nums leading-none">{awayScore}</span>
-        </div>
-
-        {/* Away */}
-        <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-semibold text-gray-200 truncate">{game.awayTeam}</p>
-        </div>
       </div>
     </div>
   );
