@@ -17,6 +17,8 @@ interface ApiMarket {
   options: { label: string; probability: number }[];
   slug: string;
   eventId: string | null;
+  eventMarketCount?: number;
+  eventSlug?: string | null;
 }
 
 interface ApiResponse {
@@ -41,6 +43,8 @@ function mapMarket(api: ApiMarket): Market {
     options: api.options,
     slug:    api.slug,
     eventId: api.eventId ?? "",
+    eventMarketCount: api.eventMarketCount ?? 1,
+    eventSlug: api.eventSlug ?? undefined,
   };
 }
 

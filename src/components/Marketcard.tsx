@@ -17,6 +17,8 @@ export interface Market {
   options: MarketOption[];
   slug?: string;
   eventId?: string;
+  eventMarketCount?: number;
+  eventSlug?: string;
 }
 
 interface Props {
@@ -33,7 +35,10 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
 
   return (
     <div
-      onClick={() => router.push(`/markets/${slug}`)}
+      onClick={() => {
+        const isMulti = (market.eventMarketCount ?? 0) >= 2 && market.eventSlug;
+        router.push(isMulti ? `/events/${market.eventSlug}` : `/markets/${slug}`);
+      }}
       className="cursor-pointer w-full rounded-2xl border border-white/5 bg-[#111113] p-4 flex flex-col gap-4 hover:border-white/10 transition"
     >
       {/* HEADER */}
