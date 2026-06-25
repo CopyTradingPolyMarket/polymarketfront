@@ -6,7 +6,10 @@ import { slugify } from "@/lib/slugify";
 
 export interface MarketOption {
   label: string;
-  probability: number;
+  probability: number; // 0–100
+  multiplier?: number; // payout shown as "x" — falls back to an implied value if API doesn't send one yet
+  image?: string;      // optional small icon/logo for this option (e.g. team logo)
+  color?: string;      // optional accent color for this option's underline — falls back to a stable per-index color
 }
 
 export interface Market {
@@ -14,76 +17,113 @@ export interface Market {
   title: string;
   image: string;
   volume: string;
-  options: MarketOption[];
+  options: MarketOption[];   // only the first 2 are rendered on the card
+  optionsCount?: number;     // total number of outcomes this market has (shown as "N markets"); defaults to options.length
+  categoryLabel?: string;    // small caps label next to the icon, e.g. "CONGRESS" or "BTC"
+  closesInLabel?: string;    // optional countdown shown in orange next to volume, e.g. "21:23"
   slug?: string;
   eventId?: string;
 }
 
 interface Props {
   market: Market;
-  onSelect?: (marketId: string, option: string, value: "yes" | "no") => void;
+  onSelect?: (marketId: string, optionLabel: string) => void;
+}
+
+// Accent color per option, by position. Stable + readable; first is green to
+// match the reference. Override per-option via MarketOption.color.
+const PALETTE = ["#34d399", "#3b82f6", "#a855f7", "#f59e0b", "#ef4444", "#14b8a6", "#eab308", "#ec4899"];
+
+// Rough implied payout multiplier if the API doesn't send one directly.
+function impliedMultiplier(probability: number): number {
+  if (probability <= 0) return 0;
+  return Math.round((100 / probability) * 100) / 100;
+}
+
+function OptionRow({ option, index, onClick }: { option: MarketOption; index: number; onClick: () => void }) {
+  const color = option.color ?? PALETTE[index % PALETTE.length];
+  const multiplier = option.multiplier ?? impliedMultiplier(option.probability);
+  const pct = Math.round(option.probability);
+
+  return (
+    <div
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="flex items-center justify-between gap-3 -mx-1.5 px-1.5 py-1.5 rounded-lg cursor-pointer hover:bg-white/[0.03] transition"
+    >
+      {/* label + accent underline (width tracks probability) */}
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        {option.image ? (
+          <img src={option.image} alt="" className="w-4 h-4 rounded object-contain shrink-0" />
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <p className="text-[12px] text-white leading-none truncate">{option.label}</p>
+          <div
+            className="h-[2.5px] rounded-full mt-1.5"
+            style={{ width: `${Math.max(pct, 5)}%`, minWidth: 14, background: color }}
+          />
+        </div>
+      </div>
+
+      {/* multiplier + percent pill */}
+      <div className="flex items-center gap-2.5 shrink-0">
+        <span className="text-[11px] text-gray-500 tabular-nums text-right min-w-[40px]">
+          {multiplier.toFixed(2)}x
+        </span>
+        <span className="text-[11px] font-bold text-white border border-emerald-500/50 rounded-full px-3 py-1 tabular-nums text-center min-w-[56px]">
+          {pct}%
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export default function SmallMarketCard({ market, onSelect }: Props) {
   const router = useRouter();
   const slug = market.slug ?? slugify(market.title);
-
-  const yesOpt = market.options.find((o) => o.label.toLowerCase() === "yes") ?? market.options[0];
-  const noOpt  = market.options.find((o) => o.label.toLowerCase() === "no")  ?? market.options[1];
+  const displayOptions = market.options.slice(0, 2);
+  const optionsCount = market.optionsCount ?? market.options.length;
 
   return (
     <div
       onClick={() => router.push(`/markets/${slug}`)}
-      className="cursor-pointer w-full rounded-2xl border border-white/5 bg-[#111113] p-4 flex flex-col gap-4 hover:border-white/10 transition"
+      className="cursor-pointer w-full rounded-xl border border-white/[0.06] bg-[#131316] p-3.5 hover:border-white/10 transition"
     >
       {/* HEADER */}
-      <div className="flex gap-3">
-        <img
-          src={market.image}
-          alt={market.title}
-          className="w-10 h-10 rounded-lg object-cover"
-        />
-
-        <h3 className="text-[13.5px] font-semibold text-white leading-snug">
-          {market.title}
-        </h3>
-      </div>
-
-      {/* OPTIONS — single Yes/No row */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-[20px] font-bold text-white leading-none">
-            {yesOpt?.probability ?? 0}%
+      <div className="flex items-center gap-2 mb-3">
+        {market.image ? (
+          <img src={market.image} alt={market.title} className="w-6 h-6 rounded-md object-cover shrink-0" />
+        ) : (
+          <div className="w-6 h-6 rounded-md bg-white/10 shrink-0" />
+        )}
+        {market.categoryLabel ? (
+          <span className="text-[10px] font-bold tracking-[0.12em] text-gray-500 uppercase truncate">
+            {market.categoryLabel}
           </span>
-          <span className="text-[11px] text-gray-500">Yes</span>
-        </div>
-
-        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={() => onSelect?.(market.id, yesOpt?.label ?? "Yes", "yes")}
-            className="px-2 py-1 text-[11px] rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition"
-          >
-            Yes
-          </button>
-          {noOpt && (
-            <button
-              onClick={() => onSelect?.(market.id, noOpt.label, "no")}
-              className="px-2 py-1 text-[11px] rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
-            >
-              No
-            </button>
-          )}
-        </div>
+        ) : null}
       </div>
 
-      {/* FOOTER */}
-      <div className="flex items-center justify-between pt-2 border-t border-white/5">
-        <span className="text-[12px] text-gray-500">{market.volume}</span>
+      {/* TITLE */}
+      <h3 className="text-[13px] font-bold text-white leading-snug mb-3.5">{market.title}</h3>
 
-        <div className="flex gap-2 text-gray-500">
-          <button className="hover:text-white transition">🎁</button>
-          <button className="hover:text-white transition">🔖</button>
+      {/* OPTIONS */}
+      <div className="flex flex-col gap-1">
+        {displayOptions.map((opt, i) => (
+          <OptionRow key={opt.label} option={opt} index={i} onClick={() => onSelect?.(market.id, opt.label)} />
+        ))}
+      </div>
+
+      {/* FOOTER — no divider, just spacing */}
+      <div className="flex items-center justify-between mt-3.5 text-[11px] text-gray-500">
+        <div className="flex items-center gap-2">
+          {market.closesInLabel ? (
+            <span className="text-orange-400 font-medium tabular-nums">{market.closesInLabel}</span>
+          ) : null}
+          <span>{market.volume}</span>
         </div>
+        {optionsCount > displayOptions.length ? <span>{optionsCount} markets</span> : null}
       </div>
     </div>
   );

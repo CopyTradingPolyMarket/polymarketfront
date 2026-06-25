@@ -1,19 +1,45 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import SmallMarketCard from "./Marketcard";
-import type { Market } from "./Marketcard";
+import type { Market, MarketOption } from "./Marketcard";
 import { formatLiveCryptoTitle } from "@/lib/liveCryptoTitle";
+import { fetchCategoryMarkets } from "@/src/services/useCategoryMarkets";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
+// `tags` mixes broad categories ("Soccer", "Sports") with narrower/dynamic
+// tags ("2026 FIFA World Cup", "Hide From New"). We pick the category by
+// checking which of OUR known top-level categories appears in a market's
+// tags, in this priority order — reorder/extend to match your real taxonomy.
+// This same list also defines which sections show up on the home feed.
+const CATEGORIES = [
+  "Pro Basketball (M)",
+  "Crypto",
+  "Soccer",
+  "Politics",
+  "Sports",
+];
+const HOME_SECTION_LIMIT = 4;
+
+function categoryFromTags(tags: string[] | undefined): string | undefined {
+  if (!tags || tags.length === 0) return undefined;
+  return CATEGORIES.find((known) => tags.includes(known));
+}
+
+interface ApiMarketOption {
+  label: string;
+  probability: number; // already 0–100
+}
 
 interface ApiMarket {
   id: string;
   title: string;
   image: string | null;
   volume: number;
-  options: { label: string; probability: number }[];
+  options: ApiMarketOption[];
+  tags: string[];
   slug: string;
   eventId: string | null;
 }
@@ -33,15 +59,115 @@ function formatVolume(v: number): string {
 
 function mapMarket(api: ApiMarket): Market {
   return {
-    id:      api.id,
-    title:   (api.slug && formatLiveCryptoTitle(api.slug)) ?? api.title,
-    image:   api.image ?? "",
-    volume:  formatVolume(api.volume),
-    options: api.options,
-    slug:    api.slug,
-    eventId: api.eventId ?? "",
+    id:            api.id,
+    title:         (api.slug && formatLiveCryptoTitle(api.slug)) ?? api.title,
+    image:         api.image ?? "",
+    volume:        formatVolume(api.volume),
+    options:       api.options,
+    optionsCount:  api.options.length,
+    categoryLabel: categoryFromTags(api.tags),
+    slug:          api.slug,
+    eventId:       api.eventId ?? "",
   };
 }
+
+// --- eventId grouping -------------------------------------------------
+//
+// Several markets can share the same eventId (e.g. one "Will <country> win
+// the World Cup?" market per country). Those are really the N options of a
+// single event, so we merge them into one multi-option card instead of N
+// separate Yes/No cards.
+//
+// NOTE: grouping only works within the markets already returned in one
+// page/batch. If the backend paginates by individual markets (not events),
+// siblings of the same event can land on different pages and the grouping
+// will look "broken" (some options on one page, some on another). For the
+// home feed (top markets by volume) this is essentially never an issue; for
+// the full paginated category view it can be — the proper fix is for the
+// backend to paginate by event rather than by market.
+//
+// Only recognizes the "Will X win Y?" phrasing seen in the sample data so
+// far. Add more entries here as you run into other title shapes that should
+// be grouped. If a group's titles don't all match a known template, we don't
+// guess — we just render that group as separate individual cards.
+const EVENT_TEMPLATES: {
+  match: RegExp;
+  eventTitle: (m: RegExpMatchArray) => string;
+}[] = [
+  {
+    match: /^Will (.+?) win (.+?)\??$/i,
+    eventTitle: (m) => `${m[2].replace(/^the\s+/i, "")} — Winner`,
+  },
+];
+
+function extractOptionLabel(title: string): { label: string; eventTitle: string } | null {
+  for (const tpl of EVENT_TEMPLATES) {
+    const m = title.match(tpl.match);
+    if (m) return { label: m[1], eventTitle: tpl.eventTitle(m) };
+  }
+  return null;
+}
+
+function buildEventCard(group: ApiMarket[]): Market | null {
+  const parsed = group.map((m) => ({ market: m, info: extractOptionLabel(m.title) }));
+  if (parsed.some((p) => !p.info)) return null; // not every sibling matched a known template — bail out
+
+  const eventTitle = parsed[0].info!.eventTitle;
+
+  const options: MarketOption[] = parsed
+    .map(({ market, info }) => {
+      const yes = market.options.find((o) => o.label.toLowerCase() === "yes") ?? market.options[0];
+      return {
+        label: info!.label,
+        probability: yes?.probability ?? 0,
+        image: market.image ?? undefined,
+      };
+    })
+    .sort((a, b) => b.probability - a.probability);
+
+  const top = group.reduce((best, m) => (m.volume > best.volume ? m : best), group[0]);
+
+  return {
+    id:            group[0].eventId ?? group[0].id,
+    title:         eventTitle,
+    image:         top.image ?? "",
+    volume:        formatVolume(group.reduce((sum, m) => sum + m.volume, 0)),
+    options,
+    optionsCount:  group.length,
+    categoryLabel: categoryFromTags(group[0].tags),
+    slug:          top.slug, // placeholder until there's a dedicated event-level page/slug
+    eventId:       group[0].eventId ?? "",
+  };
+}
+
+function groupMarketsByEvent(items: ApiMarket[]): Market[] {
+  const groups = new Map<string, ApiMarket[]>();
+  items.forEach((item) => {
+    const key = item.eventId ?? `solo:${item.id}`;
+    const list = groups.get(key) ?? [];
+    list.push(item);
+    groups.set(key, list);
+  });
+
+  const withVolume: { market: Market; volume: number }[] = [];
+
+  groups.forEach((group) => {
+    if (group.length === 1) {
+      withVolume.push({ market: mapMarket(group[0]), volume: group[0].volume });
+      return;
+    }
+
+    const eventCard = buildEventCard(group);
+    if (eventCard) {
+      withVolume.push({ market: eventCard, volume: group.reduce((s, m) => s + m.volume, 0) });
+    } else {
+      group.forEach((m) => withVolume.push({ market: mapMarket(m), volume: m.volume }));
+    }
+  });
+
+  return withVolume.sort((a, b) => b.volume - a.volume).map((w) => w.market);
+}
+// -----------------------------------------------------------------------
 
 // Computes which page numbers (and '...' sentinels) to render.
 // Always shows: page 1, page total, and currentPage ± 1.
@@ -59,7 +185,7 @@ function getPageNumbers(current: number, total: number): (number | "...")[] {
     if (i > 0) {
       const gap = sorted[i] - sorted[i - 1];
       if (gap === 2) {
-        result.push(sorted[i] - 1); // single missing number — show it instead of '...'
+        result.push(sorted[i] - 1);
       } else if (gap > 2) {
         result.push("...");
       }
@@ -71,7 +197,7 @@ function getPageNumbers(current: number, total: number): (number | "...")[] {
 
 function CardSkeleton() {
   return (
-    <div className="rounded-2xl border border-white/5 bg-[#111113] p-4 animate-pulse">
+    <div className="rounded-2xl border border-white/5 bg-[#0E0E10] p-4 animate-pulse">
       <div className="flex gap-3 mb-4">
         <div className="w-10 h-10 rounded-lg shrink-0" style={{ background: "rgba(255,255,255,0.06)" }} />
         <div className="flex-1">
@@ -84,6 +210,19 @@ function CardSkeleton() {
         <div className="h-7 rounded" style={{ background: "rgba(255,255,255,0.06)" }} />
       </div>
       <div className="h-3 rounded w-1/3 pt-2" style={{ background: "rgba(255,255,255,0.06)" }} />
+    </div>
+  );
+}
+
+function SectionSkeleton() {
+  return (
+    <div className="mb-10">
+      <div className="h-5 w-40 rounded mb-4" style={{ background: "rgba(255,255,255,0.06)" }} />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <CardSkeleton key={i} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -138,40 +277,57 @@ function PaginationBar({
         flexWrap: "wrap",
       }}
     >
-      <button
-        onClick={() => onPage(current - 1)}
-        disabled={current === 1}
-        style={current === 1 ? BTN_DISABLED : BTN_BASE}
-      >
+      <button onClick={() => onPage(current - 1)} disabled={current === 1} style={current === 1 ? BTN_DISABLED : BTN_BASE}>
         ← Prev
       </button>
 
       {pages.map((p, i) =>
         p === "..." ? (
-          <span
-            key={`dots-${i}`}
-            style={{ color: "#4b5563", padding: "0 4px", fontSize: 13, userSelect: "none" }}
-          >
+          <span key={`dots-${i}`} style={{ color: "#4b5563", padding: "0 4px", fontSize: 13, userSelect: "none" }}>
             …
           </span>
         ) : (
-          <button
-            key={p}
-            onClick={() => onPage(p as number)}
-            style={p === current ? BTN_ACTIVE : BTN_BASE}
-          >
+          <button key={p} onClick={() => onPage(p as number)} style={p === current ? BTN_ACTIVE : BTN_BASE}>
             {p}
           </button>
         )
       )}
 
-      <button
-        onClick={() => onPage(current + 1)}
-        disabled={current === total}
-        style={current === total ? BTN_DISABLED : BTN_BASE}
-      >
+      <button onClick={() => onPage(current + 1)} disabled={current === total} style={current === total ? BTN_DISABLED : BTN_BASE}>
         Next →
       </button>
+    </div>
+  );
+}
+
+interface CategorySectionData {
+  category: string;
+  markets: Market[];
+}
+
+function CategorySection({
+  data,
+  onSelect,
+}: {
+  data: CategorySectionData;
+  onSelect: (marketId: string, optionLabel: string) => void;
+}) {
+  const router = useRouter();
+
+  return (
+    <div className="mb-10">
+      <button
+        onClick={() => router.push(`?category=${encodeURIComponent(data.category)}`)}
+        className="flex items-center gap-1.5 mb-4 group"
+      >
+        <h2 className="text-[19px] font-bold text-white cursor-pointer">{data.category}</h2>
+        <span className="text-emerald-400 text-[30px] -translate-y-0.5 group-hover:translate-x-0.5 transition">›</span>
+      </button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {data.markets.map((market) => (
+          <SmallMarketCard key={market.id} market={market} onSelect={onSelect} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -179,12 +335,12 @@ function PaginationBar({
 export default function MarketsList() {
   const searchParams = useSearchParams();
 
-  // Read filter values from URL. "sort=breaking" is a UI-only token — it maps
-  // to sort=volume for the API call (Breaking has no distinct API sort).
   const urlCategory = searchParams.get("category") ?? "";
   const urlSort     = searchParams.get("sort")     ?? "";
   const urlSearch   = searchParams.get("search")   ?? "";
   const apiSort     = urlSort === "breaking" ? "movers" : (urlSort || "volume");
+
+  const isHomeView = !urlCategory && !urlSearch;
 
   const [markets,     setMarkets]     = useState<Market[]>([]);
   const [loading,     setLoading]     = useState(true);
@@ -192,11 +348,44 @@ export default function MarketsList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages,  setTotalPages]  = useState(0);
 
+  const [sections,        setSections]        = useState<CategorySectionData[]>([]);
+  const [sectionsLoading, setSectionsLoading]  = useState(true);
+  const [sectionsError,   setSectionsError]    = useState(false);
+
   const topRef        = useRef<HTMLDivElement>(null);
-  // Track the last-fetched filter so we can detect when it changes and reset page.
   const prevFilterRef = useRef({ category: urlCategory, sort: urlSort, search: urlSearch });
 
+  // HOME VIEW — fetch a few markets per category, in parallel, then group by eventId.
   useEffect(() => {
+    if (!isHomeView) return;
+
+    let cancelled = false;
+    setSectionsLoading(true);
+    setSectionsError(false);
+
+    Promise.all(
+    CATEGORIES.map(async (category) => {
+      const items = await fetchCategoryMarkets(category, "volume");
+      // group FIRST, then take top N cards — otherwise two siblings of the same
+      // event inside the first N raw markets collapse into one card (3 instead of 4).
+      const markets = groupMarketsByEvent(items).slice(0, HOME_SECTION_LIMIT);
+      return { category, markets };
+    })
+  )
+  .then((results) => {
+    if (cancelled) return;
+    setSections(results.filter((s) => s.markets.length > 0));
+  })
+  .catch(() => { if (!cancelled) setSectionsError(true); })
+  .finally(() => { if (!cancelled) setSectionsLoading(false); });
+
+      return () => { cancelled = true; };
+    }, [isHomeView]);
+
+  // CATEGORY / SEARCH VIEW — existing single paginated list, unchanged behavior.
+  useEffect(() => {
+    if (isHomeView) return;
+
     const filterChanged =
       prevFilterRef.current.category !== urlCategory ||
       prevFilterRef.current.sort     !== urlSort     ||
@@ -204,9 +393,6 @@ export default function MarketsList() {
 
     prevFilterRef.current = { category: urlCategory, sort: urlSort, search: urlSearch };
 
-    // When filter changes, always fetch page 1. Also reset the page indicator
-    // so the pagination bar reflects the correct page. If currentPage is already
-    // 1 this setState is a no-op and causes no extra re-render.
     const pageToFetch = filterChanged ? 1 : currentPage;
     if (filterChanged && currentPage !== 1) setCurrentPage(1);
 
@@ -233,7 +419,7 @@ export default function MarketsList() {
       })
       .then((data) => {
         if (cancelled) return;
-        setMarkets(data.items.map(mapMarket));
+        setMarkets(groupMarketsByEvent(data.items));
         setTotalPages(data.totalPages);
       })
       .catch(() => { if (!cancelled) setError(true); })
@@ -242,7 +428,7 @@ export default function MarketsList() {
     return () => { cancelled = true; };
   // apiSort is derived from urlSort so no need to include it separately
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, urlCategory, urlSort, urlSearch]);
+  }, [isHomeView, currentPage, urlCategory, urlSort, urlSearch]);
 
   const goToPage = (page: number) => {
     if (page < 1 || page > totalPages || page === currentPage) return;
@@ -250,9 +436,30 @@ export default function MarketsList() {
     topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const handleSelect = (marketId: string, option: string, value: "yes" | "no") => {
-    console.log({ marketId, option, value });
+  const handleSelect = (marketId: string, optionLabel: string) => {
+    console.log({ marketId, optionLabel });
   };
+
+  if (isHomeView) {
+    return (
+      <div ref={topRef}>
+        {sectionsLoading ? (
+          CATEGORIES.map((c) => <SectionSkeleton key={c} />)
+        ) : sectionsError ? (
+          <div className="flex items-center justify-center py-16 text-center">
+            <div>
+              <p className="text-gray-400 text-sm">Couldn&apos;t load markets.</p>
+              <p className="text-gray-600 text-xs mt-1">Please try again later.</p>
+            </div>
+          </div>
+        ) : (
+          sections.map((section) => (
+            <CategorySection key={section.category} data={section} onSelect={handleSelect} />
+          ))
+        )}
+      </div>
+    );
+  }
 
   const gridContent = (() => {
     if (loading) {
