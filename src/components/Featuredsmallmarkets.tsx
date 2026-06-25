@@ -10,6 +10,7 @@ import LiveSportsList from "./LiveSportsList";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 interface ApiMarket {
+  type?: "market" | "event";
   id: string;
   title: string;
   image: string | null;
@@ -35,9 +36,12 @@ function formatVolume(v: number): string {
 }
 
 function mapMarket(api: ApiMarket): Market {
+  const isEvent = api.type === "event";
   return {
+    type:    api.type ?? "market",
     id:      api.id,
-    title:   (api.slug && formatLiveCryptoTitle(api.slug)) ?? api.title,
+    // For event cards use the event title as-is; for market cards apply live-crypto rename
+    title:   isEvent ? api.title : ((api.slug && formatLiveCryptoTitle(api.slug)) ?? api.title),
     image:   api.image ?? "",
     volume:  formatVolume(api.volume),
     options: api.options,

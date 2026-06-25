@@ -10,6 +10,7 @@ export interface MarketOption {
 }
 
 export interface Market {
+  type?: "market" | "event";
   id: string;
   title: string;
   image: string;
@@ -29,6 +30,7 @@ interface Props {
 export default function SmallMarketCard({ market, onSelect }: Props) {
   const router = useRouter();
   const slug = market.slug ?? slugify(market.title);
+  const isEvent = market.type === "event";
 
   const yesOpt = market.options.find((o) => o.label.toLowerCase() === "yes") ?? market.options[0];
   const noOpt  = market.options.find((o) => o.label.toLowerCase() === "no")  ?? market.options[1];
@@ -36,8 +38,12 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
   return (
     <div
       onClick={() => {
-        const isMulti = (market.eventMarketCount ?? 0) >= 2 && market.eventSlug;
-        router.push(isMulti ? `/events/${market.eventSlug}` : `/markets/${slug}`);
+        const dest = isEvent && market.eventSlug
+          ? `/events/${market.eventSlug}`
+          : (market.eventMarketCount ?? 0) >= 2 && market.eventSlug
+            ? `/events/${market.eventSlug}`
+            : `/markets/${slug}`;
+        router.push(dest);
       }}
       className="cursor-pointer w-full rounded-2xl border border-white/5 bg-[#111113] p-4 flex flex-col gap-4 hover:border-white/10 transition"
     >
@@ -54,32 +60,43 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
         </h3>
       </div>
 
-      {/* OPTIONS — single Yes/No row */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-[20px] font-bold text-white leading-none">
-            {yesOpt?.probability ?? 0}%
+      {/* OPTIONS */}
+      {isEvent ? (
+        /* Event card: show outcome count badge instead of Yes/No */
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-gray-400 border border-white/8">
+            {market.eventMarketCount ?? 0} outcomes
           </span>
-          <span className="text-[11px] text-gray-500">Yes</span>
+          <span className="text-[11px] text-gray-600">View all</span>
         </div>
+      ) : (
+        /* Market card: standard Yes/No probability row */
+        <div className="flex items-center justify-between">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[20px] font-bold text-white leading-none">
+              {yesOpt?.probability ?? 0}%
+            </span>
+            <span className="text-[11px] text-gray-500">Yes</span>
+          </div>
 
-        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={() => onSelect?.(market.id, yesOpt?.label ?? "Yes", "yes")}
-            className="px-2 py-1 text-[11px] rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition"
-          >
-            Yes
-          </button>
-          {noOpt && (
+          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
             <button
-              onClick={() => onSelect?.(market.id, noOpt.label, "no")}
-              className="px-2 py-1 text-[11px] rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
+              onClick={() => onSelect?.(market.id, yesOpt?.label ?? "Yes", "yes")}
+              className="px-2 py-1 text-[11px] rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition"
             >
-              No
+              Yes
             </button>
-          )}
+            {noOpt && (
+              <button
+                onClick={() => onSelect?.(market.id, noOpt.label, "no")}
+                className="px-2 py-1 text-[11px] rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
+              >
+                No
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* FOOTER */}
       <div className="flex items-center justify-between pt-2 border-t border-white/5">
