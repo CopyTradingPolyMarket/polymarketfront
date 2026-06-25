@@ -5,37 +5,49 @@ import {
   useRef,
   useEffect,
   useCallback,
-  useId,
 } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
+  CartesianGrid,
   ResponsiveContainer,
 } from "recharts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type ColorKey = "blue" | "orange" | "green" | "red" | "purple";
+
 export interface MarketOption {
   label: string;
   percent: number;
-  color: "blue" | "orange" | "green" | "red" | "purple";
+  color: ColorKey;
+  multiplier: number;   // payout shown as "x"
+  image?: string;
+  slug?: string;        // used to fetch this option's history line
+}
+
+export interface ChartSeries {
+  label: string;
+  stroke: string;                     // hex line color
+  percent: number;
+  points: { t: number; v: number }[]; // t = epoch ms
 }
 
 export interface FeaturedMarket {
   id: string;
+  slug: string;               // routing target → /markets/{slug}
   category: string;
-  subcategory?: string;
   title: string;
   options: MarketOption[];
+  optionsCount: number;       // total number of outcomes ("N more" = optionsCount - 2)
   volume: string;
-  endsAt: string;
-  chartPoints: number[];
-  flagEmoji?: string;
-  recentTrades?: { amount: string; side: "yes" | "no" }[];
+  chartSeries?: ChartSeries[]; // optional: if provided, used as-is; otherwise fetched lazily per active card
+  eventId?: string;           // set for grouped events → used for comments
+  conditionId?: string;       // set for single binary markets → used for comments
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -48,12 +60,43 @@ const FEATURED_CATEGORIES = [
 
 const AUTO_PLAY_INTERVAL = 5500;
 
+// How many markets to pull per category so we have enough siblings to form an
+// event group. Whichever eventId group has the highest total volume becomes
+// that category's featured card.
+const PER_CATEGORY_FETCH = 5;
+
+// Range passed to the history endpoint. Valid values depend on your backend —
+// adjust if "1m" isn't supported. Empty/failed history just hides the chart.
+const HISTORY_RANGE = "1m";
+
+// Max number of option lines to draw. Set high so multi-option events (e.g.
+// a World Cup with many teams) render every option as its own line. Lower it
+// if you want to cap noisy events; raise toward Infinity for truly all.
+const MAX_CHART_LINES = 4;
+
+// Distinct line colors. Beyond the fixed list we fall back to evenly spaced
+// hues (golden-angle) so any number of options still gets a unique color.
+const LINE_PALETTE = [
+  "#34d399", "#38bdf8", "#fb923c", "#a78bfa", "#f87171", "#fbbf24",
+  "#22d3ee", "#f472b6", "#a3e635", "#818cf8", "#fb7185", "#2dd4bf",
+];
+
+function lineColor(i: number): string {
+  if (i < LINE_PALETTE.length) return LINE_PALETTE[i];
+  const hue = (i * 137.508) % 360;
+  return `hsl(${hue.toFixed(0)}, 70%, 62%)`;
+}
+
 // ─── API types ────────────────────────────────────────────────────────────────
 
 interface ApiMarketItem {
+  id: string;
   slug: string;
   title: string;
   volume: number;
+  image: string | null;
+  eventId: string | null;
+  tags?: string[];
   options: { label: string; probability: number }[];
 }
 
@@ -65,9 +108,16 @@ interface ApiHistoryResponse {
   points: ApiLinePoint[] | ApiCandlePoint[];
 }
 
+interface ApiComment {
+  id: string;
+  body: string;
+  createdAt: string;
+  user: { username: string; avatarUrl: string | null };
+}
+
 // ─── Color tokens ─────────────────────────────────────────────────────────────
 
-const COLOR_MAP: Record<string, { stroke: string; fill: string; text: string; pill: string }> = {
+const COLOR_MAP: Record<ColorKey, { stroke: string; fill: string; text: string; pill: string }> = {
   blue:   { stroke: "#38bdf8", fill: "rgba(56,189,248,0.12)",  text: "#38bdf8", pill: "rgba(56,189,248,0.1)"  },
   green:  { stroke: "#34d399", fill: "rgba(52,211,153,0.12)",  text: "#34d399", pill: "rgba(52,211,153,0.1)"  },
   red:    { stroke: "#f87171", fill: "rgba(248,113,113,0.12)", text: "#f87171", pill: "rgba(248,113,113,0.1)" },
@@ -87,19 +137,107 @@ const CATEGORY_DOT: Record<string, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function assignColor(label: string, index: number): MarketOption["color"] {
-  const l = label.toLowerCase();
-  if (l === "yes") return "green";
-  if (l === "no")  return "red";
-  const CYCLE = ["blue", "orange", "purple", "purple"] as const;
-  return CYCLE[Math.min(index, CYCLE.length - 1)];
-}
-
 function fmtVol(v: number): string {
   if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(1)}B`;
   if (v >= 1_000_000)     return `$${(v / 1_000_000).toFixed(0)}M`;
   if (v >= 1_000)         return `$${(v / 1_000).toFixed(0)}K`;
   return `$${v.toFixed(0)}`;
+}
+
+function fmtVolExact(v: number): string {
+  return `$${Math.round(v).toLocaleString("en-US")} vol`;
+}
+
+function impliedMultiplier(percent: number): number {
+  if (percent <= 0) return 0;
+  return Math.round((100 / percent) * 100) / 100;
+}
+
+function fmtDate(ms: number): string {
+  const d = new Date(ms);
+  return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+}
+
+// Parse a market title into an option label + the parent event title.
+// Extend with more shapes as you encounter them; falls back to null (caller
+// then uses the raw market title as the option label).
+const TITLE_TEMPLATES: {
+  re: RegExp;
+  option: (m: RegExpMatchArray) => string;
+  event: (m: RegExpMatchArray) => string;
+}[] = [
+  {
+    re: /^Will (.+?)'s next team be (?:the )?(.+?)\??$/i,
+    option: (m) => m[2],
+    event:  (m) => `${m[1]}'s Next Team`,
+  },
+  {
+    re: /^Will (.+?) win (.+?)\??$/i,
+    option: (m) => m[1],
+    event:  (m) => `${m[2].replace(/^the\s+/i, "")} — Winner`,
+  },
+];
+
+function parseTitle(title: string): { option: string; event: string } | null {
+  for (const tpl of TITLE_TEMPLATES) {
+    const m = title.match(tpl.re);
+    if (m) return { option: tpl.option(m), event: tpl.event(m) };
+  }
+  return null;
+}
+
+function yesProbability(opts: { label: string; probability: number }[]): number {
+  const yes = opts.find((o) => o.label.toLowerCase() === "yes") ?? opts[0];
+  return yes?.probability ?? 0;
+}
+
+// Convert a raw history response into epoch-ms points, supporting both the
+// line (pt.p) and candlestick (pt.c) shapes.
+function historyToPoints(resp: ApiHistoryResponse | null): { t: number; v: number }[] {
+  if (!resp?.points?.length) return [];
+  return resp.points
+    .map((pt) => ({
+      t: Date.parse(pt.t),
+      v: "p" in pt ? pt.p : (pt as ApiCandlePoint).c,
+    }))
+    .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.v));
+}
+
+// ─── Build the merged chart dataset ─────────────────────────────────────────────
+//
+// Each series can have its own timestamps, so we union all timestamps, sort
+// them, and fill each series by lookup. Missing values are left null and
+// bridged with connectNulls on the line.
+
+function buildChartData(series: ChartSeries[]): {
+  data: Record<string, number | null>[];
+  ticks: number[];
+} {
+  const valid = series.filter((s) => s.points.length >= 2);
+  if (valid.length === 0) return { data: [], ticks: [] };
+
+  const allT = new Set<number>();
+  valid.forEach((s) => s.points.forEach((p) => allT.add(p.t)));
+  const sortedT = Array.from(allT).sort((a, b) => a - b);
+
+  const maps = valid.map((s) => new Map(s.points.map((p) => [p.t, p.v])));
+  const data = sortedT.map((t) => {
+    const row: Record<string, number | null> = { t };
+    maps.forEach((m, i) => {
+      row[`s${i}`] = m.has(t) ? (m.get(t) as number) : null;
+    });
+    return row;
+  });
+
+  // ~5 evenly spaced ticks
+  const ticks: number[] = [];
+  const n = Math.min(5, sortedT.length);
+  for (let i = 0; i < n; i++) {
+    const idx = Math.round((i * (sortedT.length - 1)) / Math.max(1, n - 1));
+    ticks.push(sortedT[idx]);
+  }
+
+  return { data, ticks: Array.from(new Set(ticks)) };
 }
 
 // ─── Data fetching ────────────────────────────────────────────────────────────
@@ -111,53 +249,112 @@ function useFeaturedMarkets(onLoad?: (count: number) => void) {
     let cancelled = false;
 
     async function load() {
-      // Step 1 — one request per category in parallel
+      // Step 1 — pull a batch per category in parallel.
       const catResponses = await Promise.all(
         FEATURED_CATEGORIES.map((cat) =>
-          fetch(`${API_BASE}/api/markets?category=${encodeURIComponent(cat)}&sort=volume&limit=1`)
+          fetch(`${API_BASE}/api/markets?category=${encodeURIComponent(cat)}&sort=volume&limit=${PER_CATEGORY_FETCH}`)
             .then((r) => (r.ok ? (r.json() as Promise<{ items: ApiMarketItem[] }>) : { items: [] }))
             .catch(() => ({ items: [] as ApiMarketItem[] }))
         )
       );
-
       if (cancelled) return;
 
-      const pairs: { cat: string; item: ApiMarketItem }[] = [];
+      // Step 2 — for each category, pick the highest-volume eventId group.
+      type Pick = { cat: string; group: ApiMarketItem[] };
+      const picks: Pick[] = [];
+
       FEATURED_CATEGORIES.forEach((cat, i) => {
-        const item = catResponses[i].items[0];
-        if (item) pairs.push({ cat, item });
+        const items = catResponses[i].items ?? [];
+        if (items.length === 0) return;
+
+        const groups = new Map<string, ApiMarketItem[]>();
+        items.forEach((it) => {
+          const key = it.eventId ?? `solo:${it.id}`;
+          const arr = groups.get(key) ?? [];
+          arr.push(it);
+          groups.set(key, arr);
+        });
+
+        let best: ApiMarketItem[] | null = null;
+        let bestVol = -1;
+        groups.forEach((g) => {
+          const vol = g.reduce((s, m) => s + m.volume, 0);
+          if (vol > bestVol) { bestVol = vol; best = g; }
+        });
+        if (best) picks.push({ cat, group: best });
       });
 
-      // Step 2 — history for each market in parallel
-      const histories = await Promise.all(
-        pairs.map(({ item }) =>
-          fetch(`${API_BASE}/api/markets/by-slug/${item.slug}/history?range=1d`)
-            .then((r) => (r.ok ? (r.json() as Promise<ApiHistoryResponse>) : { shape: "line" as const, points: [] }))
-            .catch(() => ({ shape: "line" as const, points: [] as ApiLinePoint[] }))
-        )
-      );
+      // Step 3 — build option lists + figure out which slugs need history.
+      const built = picks.map(({ cat, group }) => {
+        const isEvent = group.length > 1;
 
-      if (cancelled) return;
+        let title: string;
+        let options: MarketOption[];
+        let eventId: string | undefined;
+        let conditionId: string | undefined;
 
-      const result: FeaturedMarket[] = pairs.map(({ cat, item }, i) => {
-        const resp = histories[i];
-        const pts  = resp?.points ?? [];
-        // Support both line (pt.p) and candlestick (pt.c) shapes
-        const rawVals = pts.map((pt) => ("p" in pt ? pt.p : (pt as ApiCandlePoint).c));
-        const chartPoints = rawVals.length >= 2 ? rawVals : [];
+        if (isEvent) {
+          eventId = group[0].eventId ?? undefined;
+          // option per sibling market, ordered by probability desc
+          const parsed = group.map((m) => {
+            const info = parseTitle(m.title);
+            return {
+              market: m,
+              label: info?.option ?? m.title,
+              event: info?.event,
+              percent: Math.round(yesProbability(m.options)),
+            };
+          });
+          parsed.sort((a, b) => b.percent - a.percent);
+
+          title = parsed.find((p) => p.event)?.event
+            ?? group.reduce((a, b) => (a.volume > b.volume ? a : b)).title;
+
+          options = parsed.map((p) => ({
+            label: p.label,
+            percent: p.percent,
+            color: "blue", // table pills are neutral; chart colors assigned later
+            multiplier: impliedMultiplier(p.percent),
+            image: p.market.image ?? undefined,
+            slug: p.market.slug,
+          }));
+        } else {
+          const m = group[0];
+          conditionId = m.id;
+          title = m.title;
+          options = m.options.map((o) => ({
+            label: o.label,
+            percent: Math.round(o.probability),
+            color: o.label.toLowerCase() === "no" ? "red" : "green",
+            multiplier: impliedMultiplier(o.probability),
+            image: m.image ?? undefined,
+            slug: m.slug, // history is per-market; only the top line is drawable
+          }));
+        }
+
+        return { cat, group, isEvent, title, options, eventId, conditionId };
+      });
+
+      // Build FeaturedMarket objects WITHOUT chart history — each card fetches
+      // histories for all its options lazily when it becomes the active slide.
+      const result: FeaturedMarket[] = built.map((b) => {
+        const totalVol = b.group.reduce((s, m) => s + m.volume, 0);
+
+        // route to the real market slug — for an event group use the
+        // highest-volume sibling's slug (placeholder until there's a dedicated
+        // event-level slug/page).
+        const routeSlug = b.group.reduce((a, c) => (c.volume > a.volume ? c : a), b.group[0]).slug;
 
         return {
-          id:       item.slug,
-          category: cat,
-          title:    item.title,
-          options:  item.options.map((opt, idx) => ({
-            label:   opt.label,
-            percent: Math.round(opt.probability),
-            color:   assignColor(opt.label, idx),
-          })),
-          volume:      fmtVol(item.volume),
-          endsAt:      "",
-          chartPoints,
+          id: b.eventId ?? b.conditionId ?? b.group[0].id,
+          slug: routeSlug,
+          category: b.cat,
+          title: b.title,
+          options: b.options,
+          optionsCount: b.isEvent ? b.group.length : b.options.length,
+          volume: fmtVolExact(totalVol),
+          eventId: b.eventId,
+          conditionId: b.conditionId,
         };
       });
 
@@ -167,30 +364,244 @@ function useFeaturedMarkets(onLoad?: (count: number) => void) {
 
     load();
     return () => { cancelled = true; };
-  // onLoad is always a stable setState setter — safe to omit from deps
+  // onLoad is a stable setter — safe to omit
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return markets;
 }
 
-// ─── Recharts custom tooltip ──────────────────────────────────────────────────
+// Latest comments for the active card. Only fires when `enabled` is true so we
+// don't request comments for off-screen cards.
+//
+// ASSUMED endpoint: GET /api/comments?eventId=... | ?conditionId=...
+// Returns either an array or { items: [...] } of the POST response shape.
+// Rename/reshape here if your read endpoint differs.
+function useLatestComments(args: { eventId?: string; conditionId?: string; enabled: boolean }) {
+  const [state, setState] = useState<{ items: ApiComment[]; loaded: boolean }>({ items: [], loaded: false });
 
-function ChartTooltip({ active, payload, strokeColor }: any) {
+  useEffect(() => {
+    if (!args.enabled || state.loaded) return;
+    const q = args.eventId
+      ? `eventId=${encodeURIComponent(args.eventId)}`
+      : args.conditionId
+      ? `conditionId=${encodeURIComponent(args.conditionId)}`
+      : "";
+    if (!q) { setState({ items: [], loaded: true }); return; }
+
+    let cancelled = false;
+    fetch(`${API_BASE}/api/comments?${q}`)
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((j) => {
+        if (cancelled) return;
+        const raw: ApiComment[] = Array.isArray(j) ? j : (j.items ?? []);
+        const sorted = [...raw].sort(
+          (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)
+        );
+        setState({ items: sorted, loaded: true });
+      })
+      .catch(() => { if (!cancelled) setState({ items: [], loaded: true }); });
+
+    return () => { cancelled = true; };
+  }, [args.enabled, args.eventId, args.conditionId, state.loaded]);
+
+  return state;
+}
+
+// Lazily fetch a price-history line for every option of a card, but only once
+// it becomes the active slide (avoids firing dozens of history requests for
+// off-screen cards). If the market already carries chartSeries (passed via
+// prop), that's used directly.
+//
+// Returns null while still loading, or a ChartSeries[] once resolved.
+function useChartSeries(market: FeaturedMarket, active: boolean): ChartSeries[] | null {
+  const [series, setSeries] = useState<ChartSeries[] | null>(market.chartSeries ?? null);
+
+  useEffect(() => {
+    if (market.chartSeries) return;          // provided externally — nothing to fetch
+    if (!active || series !== null) return;  // only fetch once, lazily, when active
+
+    const toDraw = market.options.filter((o) => o.slug).slice(0, MAX_CHART_LINES);
+    if (toDraw.length === 0) { setSeries([]); return; }
+
+    let cancelled = false;
+    Promise.all(
+      toDraw.map((o, i) =>
+        fetch(`${API_BASE}/api/markets/by-slug/${o.slug}/history?range=${HISTORY_RANGE}`)
+          .then((r) => (r.ok ? (r.json() as Promise<ApiHistoryResponse>) : null))
+          .catch(() => null)
+          .then((resp) => ({
+            label: o.label,
+            stroke: lineColor(i),
+            percent: o.percent,
+            points: historyToPoints(resp),
+          } as ChartSeries))
+      )
+    ).then((res) => { if (!cancelled) setSeries(res); });
+
+    return () => { cancelled = true; };
+  }, [market, active, series]);
+
+  return series;
+}
+
+// ─── Recharts tooltip ──────────────────────────────────────────────────────────
+
+function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
     <div
-      className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold border"
+      className="px-2.5 py-2 rounded-lg text-[11px] border space-y-1"
       style={{
         background:  "rgba(10,11,14,0.97)",
-        borderColor: strokeColor + "44",
-        color:       strokeColor,
-        boxShadow:   `0 0 16px ${strokeColor}22`,
+        borderColor: "rgba(255,255,255,0.1)",
         fontFamily:  "'DM Mono', monospace",
       }}
     >
-      {payload[0].value.toFixed(1)}%
+      <div className="text-gray-500 text-[10px]">{fmtDate(label)}</div>
+      {payload
+        .filter((p: any) => p.value != null)
+        .map((p: any) => (
+          <div key={p.dataKey} className="flex items-center gap-2 font-bold" style={{ color: p.stroke }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: p.stroke }} />
+            {Number(p.value).toFixed(1)}%
+          </div>
+        ))}
     </div>
+  );
+}
+
+// End-of-line dot factory — renders a pulsing dot at the last non-null point
+// of a series (the "current value" marker), to suggest the line is live.
+function makeEndDot(lastIdx: number, color: string) {
+  return function EndDot(props: any) {
+    if (props.index !== lastIdx || props.value == null) return null;
+    return (
+      <g>
+        {/* pulsing ring */}
+        <circle cx={props.cx} cy={props.cy} r={4} fill={color} opacity={0.4}>
+          <animate attributeName="r" values="4;12;4" dur="1.8s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.4;0;0.4" dur="1.8s" repeatCount="indefinite" />
+        </circle>
+        {/* solid core */}
+        <circle cx={props.cx} cy={props.cy} r={3.5} fill={color} stroke="#0c0d10" strokeWidth={1.5} />
+      </g>
+    );
+  };
+}
+
+// ─── Multi-line chart ──────────────────────────────────────────────────────────
+
+function MultiLineChart({ series }: { series: ChartSeries[] }) {
+  const { data, ticks } = buildChartData(series);
+  const valid = series.filter((s) => s.points.length >= 2);
+
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-[11px] text-gray-700">
+        No price history yet.
+      </div>
+    );
+  }
+
+  // last non-null index per series, for the end dot
+  const lastIdxByKey = valid.map((_, i) => {
+    let last = -1;
+    data.forEach((row, idx) => { if (row[`s${i}`] != null) last = idx; });
+    return last;
+  });
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+        <CartesianGrid
+          horizontal
+          vertical={false}
+          strokeDasharray="2 5"
+          stroke="rgba(255,255,255,0.07)"
+        />
+        <XAxis
+          dataKey="t"
+          type="number"
+          scale="time"
+          domain={["dataMin", "dataMax"]}
+          ticks={ticks}
+          tickFormatter={fmtDate}
+          tick={{ fontSize: 9, fill: "#6b7280" }}
+          axisLine={false}
+          tickLine={false}
+          minTickGap={20}
+        />
+        <YAxis
+          orientation="right"
+          domain={[0, 100]}
+          ticks={[0, 25, 50, 75, 100]}
+          tickFormatter={(v) => `${v}%`}
+          tick={{ fontSize: 9, fill: "#6b7280" }}
+          axisLine={false}
+          tickLine={false}
+          width={38}
+        />
+        <Tooltip
+          content={<ChartTooltip />}
+          cursor={{ stroke: "rgba(255,255,255,0.2)", strokeWidth: 1, strokeDasharray: "3 3" }}
+        />
+        {valid.map((s, i) => (
+          <Line
+            key={i}
+            type="monotone"
+            dataKey={`s${i}`}
+            stroke={s.stroke}
+            strokeWidth={2}
+            connectNulls
+            isAnimationActive={false}
+            dot={makeEndDot(lastIdxByKey[i], s.stroke)}
+            activeDot={{ r: 4, fill: s.stroke, stroke: "#0c0d10", strokeWidth: 2 }}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ─── Comments preview ──────────────────────────────────────────────────────────
+
+function CommentsPreview({
+  market,
+  active,
+  onOpen,
+}: {
+  market: FeaturedMarket;
+  active: boolean;
+  onOpen: () => void;
+}) {
+  const { items, loaded } = useLatestComments({
+    eventId: market.eventId,
+    conditionId: market.conditionId,
+    enabled: active,
+  });
+
+  const latest = items[0];
+
+  return (
+    <button onClick={onOpen} className="text-left w-full group">
+      {!loaded ? (
+        <div className="h-4 w-3/4 rounded animate-pulse" style={{ background: "rgba(255,255,255,0.05)" }} />
+      ) : latest ? (
+        <p className="text-[13px] text-gray-400 leading-relaxed line-clamp-3">
+          <span className="font-bold text-gray-300">Comments</span>
+          <span className="text-gray-700"> · </span>
+          <span className="text-gray-500">@{latest.user.username}</span>
+          <span className="text-gray-700"> · </span>
+          {latest.body}
+        </p>
+      ) : (
+        <p className="text-[13px] text-gray-600 leading-relaxed">
+          <span className="font-bold text-gray-500">Comments</span> · No comments yet.{" "}
+          <span className="text-emerald-400 group-hover:underline">Be the first →</span>
+        </p>
+      )}
+    </button>
   );
 }
 
@@ -199,25 +610,19 @@ function ChartTooltip({ active, payload, strokeColor }: any) {
 function SkeletonCard() {
   return (
     <article
-      className="flex flex-col h-full overflow-hidden rounded-2xl border border-white/[0.06] relative"
-      style={{ background: "linear-gradient(160deg, #0f1117 0%, #0c0d10 100%)" }}
+      className="rounded-2xl border border-white/[0.06] relative overflow-hidden p-6 animate-pulse"
+      style={{ background: "#131316", minHeight: 360 }}
     >
-      <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
-      <div className="px-5 pt-5 pb-3 shrink-0 animate-pulse space-y-3">
-        <div className="h-2.5 w-16 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
-        <div className="h-5 w-4/5 rounded"       style={{ background: "rgba(255,255,255,0.05)" }} />
-        <div className="h-4 w-3/5 rounded"       style={{ background: "rgba(255,255,255,0.05)" }} />
-        <div className="space-y-2 pt-1">
-          <div className="h-6 rounded" style={{ background: "rgba(255,255,255,0.04)" }} />
-          <div className="h-6 rounded" style={{ background: "rgba(255,255,255,0.04)" }} />
+      <div className="flex flex-col md:flex-row gap-8">
+        <div className="flex-1 space-y-4">
+          <div className="h-3 w-20 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
+          <div className="h-7 w-3/4 rounded"      style={{ background: "rgba(255,255,255,0.05)" }} />
+          <div className="space-y-2 pt-3">
+            <div className="h-8 rounded" style={{ background: "rgba(255,255,255,0.04)" }} />
+            <div className="h-8 rounded" style={{ background: "rgba(255,255,255,0.04)" }} />
+          </div>
         </div>
-      </div>
-      <div className="flex-1" style={{ minHeight: 120 }} />
-      <div
-        className="px-5 py-3 border-t shrink-0 animate-pulse"
-        style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.015)" }}
-      >
-        <div className="h-4 w-16 rounded" style={{ background: "rgba(255,255,255,0.05)" }} />
+        <div className="flex-1 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", minHeight: 200 }} />
       </div>
     </article>
   );
@@ -225,226 +630,134 @@ function SkeletonCard() {
 
 // ─── Market Card ──────────────────────────────────────────────────────────────
 
-function MarketCard({ market }: { market: FeaturedMarket }) {
-  const router  = useRouter();
-  const gradId  = `grad-${useId().replace(/:/g, "")}`;
-  const primary = market.options[0];
-  const c       = COLOR_MAP[primary?.color ?? "blue"] ?? COLOR_MAP.blue;
-  const isLive  = market.endsAt.toLowerCase().startsWith("live");
-  const catDot  = CATEGORY_DOT[market.category] ?? "#6b7280";
-  const slug    = market.id;
+function MarketCard({ market, active }: { market: FeaturedMarket; active: boolean }) {
+  const router = useRouter();
+  const catDot = CATEGORY_DOT[market.category] ?? "#6b7280";
+  const slug   = market.slug;
+  const tableOptions = market.options.slice(0, 2);
+  const moreCount = Math.max(0, market.optionsCount - tableOptions.length);
 
-  const hasChart   = market.chartPoints.length >= 2;
-  const chartData  = market.chartPoints.map((v, i) => ({ t: i, v }));
-  const lastVal    = hasChart ? market.chartPoints[market.chartPoints.length - 1] : 0;
-  const firstVal   = hasChart ? market.chartPoints[0] : 0;
-  const delta      = lastVal - firstVal;
-  const deltaColor = delta >= 0 ? "#34d399" : "#f87171";
+  const series = useChartSeries(market, active);
+  const legend = (series ?? []).filter((s) => s.points.length >= 2);
+
+  const open = () => router.push(`/markets/${slug}`);
+  const openOption = (opt: MarketOption) =>
+    router.push(`/markets/${opt.slug ?? slug}`);
 
   return (
     <article
-      className="flex flex-col h-full overflow-hidden rounded-2xl border border-white/[0.06] relative"
-      style={{ background: "linear-gradient(160deg, #0f1117 0%, #0c0d10 100%)" }}
+      className="rounded-2xl border border-white/[0.06] relative overflow-hidden"
+      style={{ background: "#131316", minHeight: 360 }}
     >
       {/* Top glow line */}
       <div
         className="absolute top-0 left-0 right-0 h-px"
-        style={{ background: `linear-gradient(90deg, transparent, ${c.stroke}66, transparent)` }}
+        style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)" }}
       />
 
-      {/* ── Header ── */}
-      <div className="px-5 pt-5 pb-3 shrink-0">
-        {/* Category row */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            {market.flagEmoji && (
-              <span className="text-base leading-none">{market.flagEmoji}</span>
-            )}
-            <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: catDot }} />
-              <span
-                className="text-[10px] font-semibold tracking-widest uppercase"
-                style={{ color: catDot }}
-              >
-                {market.category}
-              </span>
-            </span>
-            {market.subcategory && (
-              <span className="text-[10px] text-gray-700">/ {market.subcategory}</span>
-            )}
-          </div>
-
-          {isLive ? (
+      <div className="flex flex-col md:flex-row">
+        {/* ─── LEFT: info ─── */}
+        <div className="flex-1 min-w-0 p-6 flex flex-col">
+          {/* Category */}
+          <div className="flex items-center gap-2 mb-4">
             <span
-              className="flex items-center gap-1 text-[10px] font-bold tracking-wide px-2 py-0.5 rounded-full"
-              style={{ background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.2)" }}
+              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: catDot + "22" }}
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              LIVE
+              <span className="w-2 h-2 rounded-full" style={{ background: catDot }} />
             </span>
-          ) : market.endsAt ? (
-            <span className="text-[10px] text-gray-600 flex items-center gap-1">
-              <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-                <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.4" />
-                <path d="M5 1v3M11 1v3M2 7h12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-              </svg>
-              {market.endsAt}
+            <span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: catDot }}>
+              {market.category}
             </span>
-          ) : null}
-        </div>
+          </div>
 
-        {/* Title */}
-        <h3
-          className="text-[17px] font-bold text-white leading-snug line-clamp-2 mb-4"
-          style={{ letterSpacing: "-0.01em" }}
-        >
-          {market.title}
-        </h3>
+          {/* Title */}
+          <button onClick={open} className="text-left">
+            <h2
+              className="text-[26px] font-bold text-white leading-tight line-clamp-2 mb-5 hover:opacity-90 transition"
+              style={{ letterSpacing: "-0.02em" }}
+            >
+              {market.title}
+            </h2>
+          </button>
 
-        {/* Options bars — first two */}
-        <div className="space-y-2">
-          {market.options.slice(0, 2).map((opt, i) => {
-            const oc = COLOR_MAP[opt.color] ?? COLOR_MAP.blue;
-            return (
-              <div key={opt.label} className="flex items-center gap-3">
-                <span
-                  className="text-[11px] font-semibold shrink-0 w-7 tabular-nums text-right"
-                  style={{ color: i === 0 ? oc.text : "#4b5563" }}
-                >
-                  {opt.percent}%
-                </span>
-                <div
-                  className="flex-1 relative h-[3px] rounded-full overflow-hidden"
-                  style={{ background: "rgba(255,255,255,0.05)" }}
-                >
-                  <div
-                    className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
-                    style={{ width: `${opt.percent}%`, background: i === 0 ? oc.stroke : "#1f2937" }}
-                  />
-                </div>
-                <span
-                  className={`text-[12px] truncate flex-1 min-w-0 ${
-                    i === 0 ? "text-gray-200 font-medium" : "text-gray-600"
-                  }`}
-                >
-                  {opt.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+          {/* Options table */}
+          <div className="mb-1">
+            <div className="grid grid-cols-[1fr_auto_auto] gap-x-6 items-center mb-2 px-1">
+              <span className="text-[11px] text-gray-600 font-medium">Market</span>
+              <span className="text-[11px] text-gray-600 font-medium text-right">Pays out</span>
+              <span className="text-[11px] text-gray-600 font-medium text-center w-[72px]">Odds</span>
+            </div>
 
-        {/* Extra options as pills */}
-        {market.options.length > 2 && (
-          <div className="flex flex-wrap gap-1.5 mt-2.5">
-            {market.options.slice(2).map((opt) => {
-              const oc = COLOR_MAP[opt.color] ?? COLOR_MAP.purple;
-              return (
-                <span
+            <div className="space-y-1">
+              {tableOptions.map((opt) => (
+                <button
                   key={opt.label}
-                  className="text-[10px] font-medium px-2 py-0.5 rounded-full border"
-                  style={{ background: oc.pill, color: oc.text, borderColor: oc.stroke + "33" }}
+                  onClick={() => openOption(opt)}
+                  className="grid grid-cols-[1fr_auto_auto] gap-x-6 items-center w-full px-1 py-1.5 rounded-lg hover:bg-white/[0.03] transition"
                 >
-                  {opt.label} &lt;{opt.percent + 1}%
+                  <div className="flex items-center gap-3 min-w-0">
+                    {opt.image ? (
+                      <img src={opt.image} alt="" className="w-8 h-8 rounded-md object-cover shrink-0" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-md bg-white/10 shrink-0" />
+                    )}
+                    <span className="text-[14px] text-white font-medium truncate text-left">{opt.label}</span>
+                  </div>
+
+                  <span className="text-[13px] text-gray-400 tabular-nums text-right">
+                    {opt.multiplier.toFixed(2)}x
+                  </span>
+
+                  <span className="text-[14px] font-bold text-white border border-emerald-500/40 rounded-full px-3 py-1.5 tabular-nums text-center w-[72px]">
+                    {opt.percent}%
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Volume + more */}
+          <div className="flex items-center justify-between mt-3 px-1">
+            <span className="text-[13px] text-gray-500">{market.volume}</span>
+            {moreCount > 0 && (
+              <button onClick={open} className="text-[13px] text-gray-500 hover:text-gray-300 transition">
+                {moreCount} more
+              </button>
+            )}
+          </div>
+
+          {/* Divider + comments */}
+          <div className="mt-4 pt-4 border-t border-white/[0.06]">
+            <CommentsPreview market={market} active={active} onOpen={open} />
+          </div>
+        </div>
+
+        {/* ─── RIGHT: chart ─── */}
+        <div className="flex-1 min-w-0 p-6 md:pl-2 flex flex-col">
+          {/* Legend */}
+          {legend.length > 0 && (
+            <div className="flex flex-wrap gap-x-5 gap-y-1.5 mb-3 max-h-[64px] overflow-none w-[80%]">
+              {legend.map((s) => (
+                <span key={s.label} className="flex items-center gap-2 text-[13px]">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0 text-[9px]" style={{ background: s.stroke }} />
+                  <span className="text-gray-300 text-[9px]">{s.label}</span>
+                  <span className="font-bold text-white tabular-nums text-[9px]">{s.percent}%</span>
                 </span>
-              );
-            })}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
 
-        {/* Recent trades (optional — not populated from API) */}
-        {market.recentTrades && (
-          <div className="flex items-center gap-1.5 mt-3 flex-wrap">
-            <span className="text-[9px] text-gray-700 font-semibold tracking-wider uppercase mr-0.5">
-              Recent
-            </span>
-            {market.recentTrades.map((t, i) => (
-              <span
-                key={i}
-                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                style={{
-                  background: t.side === "yes" ? "rgba(52,211,153,0.08)" : "rgba(248,113,113,0.08)",
-                  color:      t.side === "yes" ? "#34d399"                : "#f87171",
-                  border:     `1px solid ${t.side === "yes" ? "rgba(52,211,153,0.2)" : "rgba(248,113,113,0.2)"}`,
-                }}
-              >
-                {t.side === "yes" ? "▲" : "▼"} {t.amount}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── Chart (hidden when fewer than 2 points) ── */}
-      {hasChart ? (
-        <div className="flex-1 min-h-0 relative px-0 pb-0" style={{ minHeight: 120 }}>
-          {/* Delta badge */}
-          <div
-            className="absolute top-2 right-4 z-10 flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold"
-            style={{ background: "rgba(0,0,0,0.5)", color: deltaColor }}
-          >
-            {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}pp
-          </div>
-
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"   stopColor={c.stroke} stopOpacity={0.25} />
-                  <stop offset="100%" stopColor={c.stroke} stopOpacity={0}    />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="t" hide />
-              <YAxis domain={["dataMin - 5", "dataMax + 5"]} hide />
-              <Tooltip
-                content={(props) => <ChartTooltip {...props} strokeColor={c.stroke} />}
-                cursor={{ stroke: c.stroke, strokeWidth: 1, strokeOpacity: 0.3, strokeDasharray: "3 3" }}
-              />
-              <Area
-                type="monotoneX"
-                dataKey="v"
-                stroke={c.stroke}
-                strokeWidth={2}
-                fill={`url(#${gradId})`}
-                dot={false}
-                activeDot={{ r: 4, fill: c.stroke, stroke: "#0c0d10", strokeWidth: 2 }}
-                isAnimationActive={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-
-          {/* Time axis labels */}
-          <div className="absolute bottom-1.5 left-4 right-4 flex justify-between pointer-events-none">
-            {["1d ago", "18h", "12h", "6h", "Now"].map((t) => (
-              <span key={t} className="text-[9px] text-gray-700">{t}</span>
-            ))}
+          <div className="flex-1" style={{ minHeight: 240 }}>
+            {series === null ? (
+              <div className="flex items-center justify-center h-full text-[11px] text-gray-700 animate-pulse">
+                Loading chart…
+              </div>
+            ) : (
+              <MultiLineChart series={series} />
+            )}
           </div>
         </div>
-      ) : (
-        // Spacer keeps footer pinned to bottom when there's no chart
-        <div className="flex-1" style={{ minHeight: 120 }} />
-      )}
-
-      {/* ── Footer ── */}
-      <div
-        className="flex items-center justify-between px-5 py-3 border-t shrink-0"
-        style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.015)" }}
-      >
-        <div className="flex items-center gap-1.5">
-          <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-            <path d="M2 12h12M4 9h8M6 6h4" stroke="#4b5563" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-          <span className="text-[11px] font-semibold text-gray-500">{market.volume}</span>
-          <span className="text-[9px] text-gray-700 font-medium tracking-wider uppercase">Vol</span>
-        </div>
-
-        <button
-          onClick={() => router.push(`/markets/${slug}`)}
-          className="text-[11px] font-bold px-3 py-1 rounded-lg transition-all active:scale-95 cursor-pointer"
-          style={{ background: c.fill, color: c.text, border: `1px solid ${c.stroke}33` }}
-        >
-          Trade →
-        </button>
       </div>
     </article>
   );
@@ -453,7 +766,7 @@ function MarketCard({ market }: { market: FeaturedMarket }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 interface FeaturedMarketsProps {
-  markets?: FeaturedMarket[];        // optional override; if omitted, fetched from API
+  markets?: FeaturedMarket[];
   externalIndex?: number;
   setExternalIndex?: (i: number) => void;
   paused?: boolean;
@@ -479,22 +792,24 @@ export default function FeaturedMarkets({
   const setIndex  = controlled ? setExternalIndex!  : setInternalIndex;
   const setPaused = controlled ? setExternalPaused! : setInternalPaused;
 
-  // If a markets prop is passed, skip fetching; otherwise fetch from API.
   const fetchedMarkets = useFeaturedMarkets(marketsProp ? undefined : onLoad);
-  const markets    = marketsProp ?? fetchedMarkets ?? [];
-  const isLoading  = !marketsProp && fetchedMarkets === null;
+  const markets   = marketsProp ?? fetchedMarkets ?? [];
+  const isLoading = !marketsProp && fetchedMarkets === null;
 
   const dragStart = useRef<number | null>(null);
   const total     = markets.length;
 
-  const prev = useCallback(() => setIndex(Math.max(0, index - 1)), [index, setIndex]);
+  const prev = useCallback(
+    () => setIndex((index - 1 + Math.max(1, total)) % Math.max(1, total)),
+    [index, total, setIndex]
+  );
   const next = useCallback(
     () => setIndex((index + 1) % Math.max(1, total)),
     [index, total, setIndex]
   );
 
   useEffect(() => {
-    if (paused || isLoading || total === 0) return;
+    if (paused || isLoading || total <= 1) return;
     const id = setInterval(next, AUTO_PLAY_INTERVAL);
     return () => clearInterval(id);
   }, [paused, next, isLoading, total]);
@@ -509,10 +824,8 @@ export default function FeaturedMarkets({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-        <div className="flex-1 overflow-hidden rounded-2xl">
-          <SkeletonCard />
-        </div>
+      <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+        <SkeletonCard />
       </div>
     );
   }
@@ -520,8 +833,8 @@ export default function FeaturedMarkets({
   if (markets.length === 0) {
     return (
       <div
-        className="flex flex-col h-full items-center justify-center rounded-2xl border border-white/[0.06]"
-        style={{ fontFamily: "'DM Sans', sans-serif", background: "linear-gradient(160deg, #0f1117 0%, #0c0d10 100%)" }}
+        className="flex items-center justify-center rounded-2xl border border-white/[0.06]"
+        style={{ fontFamily: "'DM Sans', sans-serif", minHeight: 360, background: "linear-gradient(160deg, #0f1117 0%, #0c0d10 100%)" }}
       >
         <p className="text-gray-600 text-sm">No featured markets available.</p>
       </div>
@@ -529,24 +842,47 @@ export default function FeaturedMarkets({
   }
 
   return (
-    <div className="flex flex-col h-full" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+    <div className="relative" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+      {/* Carousel controls — top-right of the card */}
+      {total > 1 && (
+        <div className="absolute top-5 right-5 z-20 flex items-center gap-3">
+          <button
+            onClick={() => { prev(); setPaused(true); }}
+            aria-label="Previous"
+            className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:border-white/25 transition"
+          >
+            ‹
+          </button>
+          <span className="text-[13px] text-gray-400 tabular-nums select-none">
+            {index + 1} of {total}
+          </span>
+          <button
+            onClick={() => { next(); setPaused(true); }}
+            aria-label="Next"
+            className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:border-white/25 transition"
+          >
+            ›
+          </button>
+        </div>
+      )}
+
       <div
-        className="flex-1 overflow-hidden rounded-2xl cursor-grab active:cursor-grabbing"
+        className="overflow-hidden rounded-2xl cursor-grab active:cursor-grabbing"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
       >
         <div
-          className="flex h-full"
+          className="flex"
           style={{
             transform:  `translateX(-${index * 100}%)`,
             transition: "transform 450ms cubic-bezier(0.22,1,0.36,1)",
           }}
         >
-          {markets.map((m) => (
-            <div key={m.id} className="min-w-full h-full">
-              <MarketCard market={m} />
+          {markets.map((m, i) => (
+            <div key={m.id} className="min-w-full">
+              <MarketCard market={m} active={i === index} />
             </div>
           ))}
         </div>

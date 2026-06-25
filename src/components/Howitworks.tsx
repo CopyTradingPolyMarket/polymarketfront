@@ -68,7 +68,7 @@ function TradeIllustration() {
 
       {/* Phone frame */}
       <rect x="140" y="20" width="120" height="220" rx="18" fill="#18191d" stroke="#2a2b30" strokeWidth="1.5" />
-      <rect x="155" y="35" width="90" height="170" rx="8" fill="#111113" />
+      <rect x="155" y="35" width="90" height="170" rx="8" fill="#0E0E10" />
 
       {/* Balance */}
       <text x="200" y="65" textAnchor="middle" fontFamily="DM Sans, sans-serif" fontSize="10" fill="#6b7280">Your Balance</text>
@@ -251,7 +251,7 @@ export default function HowItWorksModal({ isOpen, onClose }: HowItWorksModalProp
       <div
         className={`
           relative z-10 w-full max-w-md mx-4
-          bg-[#111113] border border-[#1e1f23] rounded-2xl
+          bg-[#0E0E10] border border-[#1e1f23] rounded-2xl
           shadow-2xl overflow-hidden
           transition-all duration-300
           ${visible ? "translate-y-0 scale-100" : "translate-y-6 scale-95"}
