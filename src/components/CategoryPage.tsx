@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import SmallMarketCard from "./Marketcard";
-import { groupMarketsByEvent, type ApiMarket } from "@/src/services/marketGrouping";
+import { formatVolume, type ApiMarket } from "@/src/services/marketGrouping";
+import { formatLiveCryptoTitle } from "@/lib/liveCryptoTitle";
+import type { Market } from "./Marketcard";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -140,10 +142,24 @@ export default function CategoryPage({ category: categoryProp }: { category?: st
   const cards = useMemo(() => {
     if (!items) return [];
     const base = sub ? items.filter((m) => (m.tags ?? []).includes(sub)) : items;
-    return groupMarketsByEvent(base, (group) => {
-      const tags = group[0].tags ?? [];
+    return base.map((m): Market => {
+      const tags = m.tags ?? [];
       const subTag = tags.find((t) => subSet.has(t));
-      return (subTag ?? category).toUpperCase();
+      return {
+        type:          (m as any).type ?? "market",
+        id:            m.id,
+        title:         (m.slug && formatLiveCryptoTitle(m.slug)) ?? m.title,
+        image:         m.image ?? "",
+        volume:        formatVolume(m.volume),
+        options:       m.options,
+        optionsCount:  m.options.length,
+        categoryLabel: (subTag ?? category).toUpperCase(),
+        slug:          m.slug,
+        eventId:       m.eventId ?? "",
+        eventMarketCount: (m as any).eventMarketCount ?? 1,
+        eventSlug:     (m as any).eventSlug ?? undefined,
+        gameId:        (m as any).gameId ?? undefined,
+      };
     });
   }, [items, sub, subSet, category]);
 

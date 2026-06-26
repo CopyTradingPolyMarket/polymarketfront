@@ -149,7 +149,7 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
   // Subscribe the visible options to live /ws/prices and merge the latest
   // value in. When a live price exists we drop the static multiplier so it
   // recomputes from the new probability.
-  const live = useLivePrices(displayOptions.map((o) => o.conditionId));
+  const live = useLivePrices(isGrouped ? [] : displayOptions.map((o) => o.conditionId));
   const liveOptions = displayOptions.map((o) => {
     const p = o.conditionId ? live[o.conditionId] : undefined;
     if (!p) return o;
@@ -162,9 +162,7 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
       onClick={() => {
         if (isGame && market.gameId) {
           router.push(`/sports/${market.gameId}`);
-        } else if (isEvent && market.eventSlug) {
-          router.push(`/events/${market.eventSlug}`);
-        } else if ((market.eventMarketCount ?? 0) >= 2 && market.eventSlug) {
+        } else if (isGrouped && market.eventSlug) {
           router.push(`/events/${market.eventSlug}`);
         } else {
           router.push(`/markets/${slug}`);
@@ -191,8 +189,8 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
 
       {/* OPTIONS */}
       {isGrouped ? (
-        <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-gray-400 border border-white/8">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-gray-400 border border-white/[0.08]">
             {market.eventMarketCount ?? 0} {isGame ? "markets" : "outcomes"}
           </span>
           <span className="text-[11px] text-gray-600">{isGame ? "View game" : "View all"}</span>
