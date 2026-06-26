@@ -16,6 +16,7 @@ export interface MarketOption {
 }
 
 export interface Market {
+  type?: "market" | "event" | "game";
   id: string;
   title: string;
   image: string;
@@ -26,6 +27,9 @@ export interface Market {
   closesInLabel?: string;    // optional countdown shown in orange next to volume, e.g. "21:23"
   slug?: string;
   eventId?: string;
+  eventMarketCount?: number;
+  eventSlug?: string;
+  gameId?: number | null;
 }
 
 interface Props {
@@ -136,13 +140,16 @@ function OptionRow({ option, index, onClick }: { option: MarketOption; index: nu
 export default function SmallMarketCard({ market, onSelect }: Props) {
   const router = useRouter();
   const slug = market.slug ?? slugify(market.title);
+  const isEvent = market.type === "event";
+  const isGame  = market.type === "game";
+  const isGrouped = isEvent || isGame;
   const displayOptions = market.options.slice(0, 2);
   const optionsCount = market.optionsCount ?? market.options.length;
 
   // Subscribe the visible options to live /ws/prices and merge the latest
   // value in. When a live price exists we drop the static multiplier so it
   // recomputes from the new probability.
-  const live = useLivePrices(displayOptions.map((o) => o.conditionId));
+  const live = useLivePrices(isGrouped ? [] : displayOptions.map((o) => o.conditionId));
   const liveOptions = displayOptions.map((o) => {
     const p = o.conditionId ? live[o.conditionId] : undefined;
     if (!p) return o;
@@ -152,7 +159,15 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
 
   return (
     <div
-      onClick={() => router.push(`/markets/${slug}`)}
+      onClick={() => {
+        if (isGame && market.gameId) {
+          router.push(`/sports/${market.gameId}`);
+        } else if (isGrouped && market.eventSlug) {
+          router.push(`/events/${market.eventSlug}`);
+        } else {
+          router.push(`/markets/${slug}`);
+        }
+      }}
       className="cursor-pointer w-full rounded-xl border border-white/[0.06] bg-[#131316] p-3.5 hover:border-white/10 transition"
     >
       {/* HEADER */}
@@ -173,13 +188,22 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
       <h3 className="text-[13px] font-bold text-white leading-snug mb-3.5">{market.title}</h3>
 
       {/* OPTIONS */}
-      <div className="flex flex-col gap-1">
-        {liveOptions.map((opt, i) => (
-          <OptionRow key={opt.label} option={opt} index={i} onClick={() => onSelect?.(market.id, opt.label)} />
-        ))}
-      </div>
+      {isGrouped ? (
+        <div className="flex items-center gap-2 mb-1">
+          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-gray-400 border border-white/[0.08]">
+            {market.eventMarketCount ?? 0} {isGame ? "markets" : "outcomes"}
+          </span>
+          <span className="text-[11px] text-gray-600">{isGame ? "View game" : "View all"}</span>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {liveOptions.map((opt, i) => (
+            <OptionRow key={opt.label} option={opt} index={i} onClick={() => onSelect?.(market.id, opt.label)} />
+          ))}
+        </div>
+      )}
 
-      {/* FOOTER — no divider, just spacing */}
+      {/* FOOTER */}
       <div className="flex items-center justify-between mt-3.5 text-[11px] text-gray-500">
         <div className="flex items-center gap-2">
           {market.closesInLabel ? (
@@ -187,7 +211,7 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
           ) : null}
           <span>{market.volume}</span>
         </div>
-        {optionsCount > displayOptions.length ? <span>{optionsCount} markets</span> : null}
+        {!isGrouped && optionsCount > displayOptions.length ? <span>{optionsCount} markets</span> : null}
       </div>
     </div>
   );

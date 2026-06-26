@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import SmallMarketCard from "./Marketcard";
-import type { Market, MarketOption } from "./Marketcard";
+import type { Market } from "./Marketcard";
 import { formatLiveCryptoTitle } from "@/lib/liveCryptoTitle";
+import LiveSportsList from "./LiveSportsList";
 import { fetchCategoryMarkets } from "@/src/services/useCategoryMarkets";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -34,6 +35,7 @@ interface ApiMarketOption {
 }
 
 interface ApiMarket {
+  type?: "market" | "event" | "game";
   id: string;
   title: string;
   image: string | null;
@@ -42,6 +44,9 @@ interface ApiMarket {
   tags: string[];
   slug: string;
   eventId: string | null;
+  eventMarketCount?: number;
+  eventSlug?: string | null;
+  gameId?: number | null;
 }
 
 interface ApiResponse {
@@ -58,9 +63,11 @@ function formatVolume(v: number): string {
 }
 
 function mapMarket(api: ApiMarket): Market {
+  const isGrouped = api.type === "event" || api.type === "game";
   return {
+    type:          api.type ?? "market",
     id:            api.id,
-    title:         (api.slug && formatLiveCryptoTitle(api.slug)) ?? api.title,
+    title:         isGrouped ? api.title : ((api.slug && formatLiveCryptoTitle(api.slug)) ?? api.title),
     image:         api.image ?? "",
     volume:        formatVolume(api.volume),
     options:       api.options,
@@ -68,106 +75,11 @@ function mapMarket(api: ApiMarket): Market {
     categoryLabel: categoryFromTags(api.tags),
     slug:          api.slug,
     eventId:       api.eventId ?? "",
+    eventMarketCount: api.eventMarketCount ?? 1,
+    eventSlug:     api.eventSlug ?? undefined,
+    gameId:        api.gameId ?? undefined,
   };
 }
-
-// --- eventId grouping -------------------------------------------------
-//
-// Several markets can share the same eventId (e.g. one "Will <country> win
-// the World Cup?" market per country). Those are really the N options of a
-// single event, so we merge them into one multi-option card instead of N
-// separate Yes/No cards.
-//
-// NOTE: grouping only works within the markets already returned in one
-// page/batch. If the backend paginates by individual markets (not events),
-// siblings of the same event can land on different pages and the grouping
-// will look "broken" (some options on one page, some on another). For the
-// home feed (top markets by volume) this is essentially never an issue; for
-// the full paginated category view it can be — the proper fix is for the
-// backend to paginate by event rather than by market.
-//
-// Only recognizes the "Will X win Y?" phrasing seen in the sample data so
-// far. Add more entries here as you run into other title shapes that should
-// be grouped. If a group's titles don't all match a known template, we don't
-// guess — we just render that group as separate individual cards.
-const EVENT_TEMPLATES: {
-  match: RegExp;
-  eventTitle: (m: RegExpMatchArray) => string;
-}[] = [
-  {
-    match: /^Will (.+?) win (.+?)\??$/i,
-    eventTitle: (m) => `${m[2].replace(/^the\s+/i, "")} — Winner`,
-  },
-];
-
-function extractOptionLabel(title: string): { label: string; eventTitle: string } | null {
-  for (const tpl of EVENT_TEMPLATES) {
-    const m = title.match(tpl.match);
-    if (m) return { label: m[1], eventTitle: tpl.eventTitle(m) };
-  }
-  return null;
-}
-
-function buildEventCard(group: ApiMarket[]): Market | null {
-  const parsed = group.map((m) => ({ market: m, info: extractOptionLabel(m.title) }));
-  if (parsed.some((p) => !p.info)) return null; // not every sibling matched a known template — bail out
-
-  const eventTitle = parsed[0].info!.eventTitle;
-
-  const options: MarketOption[] = parsed
-    .map(({ market, info }) => {
-      const yes = market.options.find((o) => o.label.toLowerCase() === "yes") ?? market.options[0];
-      return {
-        label: info!.label,
-        probability: yes?.probability ?? 0,
-        image: market.image ?? undefined,
-      };
-    })
-    .sort((a, b) => b.probability - a.probability);
-
-  const top = group.reduce((best, m) => (m.volume > best.volume ? m : best), group[0]);
-
-  return {
-    id:            group[0].eventId ?? group[0].id,
-    title:         eventTitle,
-    image:         top.image ?? "",
-    volume:        formatVolume(group.reduce((sum, m) => sum + m.volume, 0)),
-    options,
-    optionsCount:  group.length,
-    categoryLabel: categoryFromTags(group[0].tags),
-    slug:          top.slug, // placeholder until there's a dedicated event-level page/slug
-    eventId:       group[0].eventId ?? "",
-  };
-}
-
-function groupMarketsByEvent(items: ApiMarket[]): Market[] {
-  const groups = new Map<string, ApiMarket[]>();
-  items.forEach((item) => {
-    const key = item.eventId ?? `solo:${item.id}`;
-    const list = groups.get(key) ?? [];
-    list.push(item);
-    groups.set(key, list);
-  });
-
-  const withVolume: { market: Market; volume: number }[] = [];
-
-  groups.forEach((group) => {
-    if (group.length === 1) {
-      withVolume.push({ market: mapMarket(group[0]), volume: group[0].volume });
-      return;
-    }
-
-    const eventCard = buildEventCard(group);
-    if (eventCard) {
-      withVolume.push({ market: eventCard, volume: group.reduce((s, m) => s + m.volume, 0) });
-    } else {
-      group.forEach((m) => withVolume.push({ market: mapMarket(m), volume: m.volume }));
-    }
-  });
-
-  return withVolume.sort((a, b) => b.volume - a.volume).map((w) => w.market);
-}
-// -----------------------------------------------------------------------
 
 // Computes which page numbers (and '...' sentinels) to render.
 // Always shows: page 1, page total, and currentPage ± 1.
@@ -339,6 +251,7 @@ export default function MarketsList() {
   const urlSort     = searchParams.get("sort")     ?? "";
   const urlSearch   = searchParams.get("search")   ?? "";
   const apiSort     = urlSort === "breaking" ? "movers" : (urlSort || "volume");
+  const isLiveSports = urlCategory === "Live Sports";
 
   const isHomeView = !urlCategory && !urlSearch;
 
@@ -365,10 +278,9 @@ export default function MarketsList() {
 
     Promise.all(
     CATEGORIES.map(async (category) => {
-      const items = await fetchCategoryMarkets(category, "volume");
-      // group FIRST, then take top N cards — otherwise two siblings of the same
-      // event inside the first N raw markets collapse into one card (3 instead of 4).
-      const markets = groupMarketsByEvent(items).slice(0, HOME_SECTION_LIMIT);
+      const raw = await fetchCategoryMarkets(category, "volume");
+      const items = raw.map((m) => ({ ...m, tags: m.tags ?? [] })) as ApiMarket[];
+      const markets = items.map(mapMarket).slice(0, HOME_SECTION_LIMIT);
       return { category, markets };
     })
   )
@@ -396,6 +308,8 @@ export default function MarketsList() {
     const pageToFetch = filterChanged ? 1 : currentPage;
     if (filterChanged && currentPage !== 1) setCurrentPage(1);
 
+    if (isLiveSports) { setLoading(false); return; }
+
     setLoading(true);
     setError(false);
 
@@ -419,7 +333,7 @@ export default function MarketsList() {
       })
       .then((data) => {
         if (cancelled) return;
-        setMarkets(groupMarketsByEvent(data.items));
+        setMarkets(data.items.map(mapMarket));
         setTotalPages(data.totalPages);
       })
       .catch(() => { if (!cancelled) setError(true); })
@@ -511,6 +425,8 @@ export default function MarketsList() {
       </div>
     );
   })();
+
+  if (isLiveSports) return <LiveSportsList />;
 
   return (
     <div ref={topRef}>

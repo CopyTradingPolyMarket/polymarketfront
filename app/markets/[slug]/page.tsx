@@ -12,6 +12,8 @@ import type { OhlcPoint } from "@/src/components/CandlestickChart";
 import Comments from "@/src/components/Comments";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { usePrivy } from "@privy-io/react-auth";
+import LiveCryptoChart from "@/src/components/LiveCryptoChart";
+import { formatLiveCryptoTitle } from "@/lib/liveCryptoTitle";
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 
@@ -32,6 +34,8 @@ interface ApiMarketDetail {
   isLiveCrypto?: boolean;
   spot?: { symbol: string; value: number } | null;
   eventId: string;
+  gameId?: number | null;
+  sportsMarketType?: string | null;
 }
 
 interface ApiChartPoint {
@@ -95,6 +99,7 @@ function formatChartDate(iso: string, range: ApiRange): string {
 interface MappedMarket extends Market {
   isLiveCrypto: boolean;
   spot: { symbol: string; value: number } | null;
+  resolved?: boolean;
 }
 
 function mapMarket(api: ApiMarketDetail): MappedMarket {
@@ -104,6 +109,8 @@ function mapMarket(api: ApiMarketDetail): MappedMarket {
     image:   api.image ?? "",
     volume:  formatVolume(api.volume),
     options: api.options,
+    slug: api.slug,
+    resolved: api.resolved,
     isLiveCrypto: api.isLiveCrypto ?? false,
     spot: api.spot ?? null,
     eventId: api.eventId,
@@ -890,6 +897,10 @@ export default function MarketPage() {
       })
       .then((data) => {
         if (data) {
+          if (data.gameId && data.sportsMarketType) {
+            router.replace(`/sports/${data.gameId}`);
+            return;
+          }
           setMarket(mapMarket(data));
           setMarketTags(data.tags ?? []);
           setMarketSlug(data.slug ?? "");
@@ -1158,9 +1169,23 @@ export default function MarketPage() {
     ? ((Number(amount) / (prob / 100)) - Number(amount)).toFixed(2) : null;
   const trend   = chartData.length > 1 ? chartData[chartData.length - 1].probability - chartData[0].probability : 0;
   const trendUp = trend >= 0;
-  
+
+  // Market is done: resolved, locked, or expired 5-min window
+  const isExpired5m = (() => {
+    const m = market.slug?.match(/-updown-(\d+)m-(\d+)$/);
+    if (!m) return false;
+    const duration = parseInt(m[1]) * 60;
+    const ts = parseInt(m[2]);
+    return ts + duration < Date.now() / 1000;
+  })();
+  const isDone = wsResolved !== null || isLocked || isExpired5m || market.resolved === true;
+  const doneLabel = wsResolved !== null
+    ? `Resolved · ${wsResolved === 1 ? "UP" : "DOWN"}`
+    : isExpired5m ? "Window Expired"
+    : isLocked ? "Market Locked"
+    : "Market Closed";
+
   const sharedPanelProps = { market: effectiveMarket, activeOption, setActiveOption, betType, setBetType, amount, setAmount, estimatedShares, potentialProfit, prob, router, handleTrade, tradeStatus, tradeMessage, authenticated, panelMode, setPanelMode, sellSide, setSellSide, sellDollars, setSellDollars, sellIsMax, setSellIsMax, userPosition, positionLoading, handleSell, sellStatus, sellMessage };
-  
   return (
     <div style={{ minHeight: "100vh", background: "#09090b", color: "#fff", fontFamily: "'DM Sans','Helvetica Neue',sans-serif" }}>
 

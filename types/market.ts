@@ -4,6 +4,7 @@ export interface Market {
   image: string;
   eventId: string;
   volume: string;
+  slug?: string;
   options: {
     label: string;
     probability: number;

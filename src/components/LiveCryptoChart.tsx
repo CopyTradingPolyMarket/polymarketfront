@@ -20,6 +20,12 @@ interface Props {
   spotLoading: boolean;
 }
 
+function fmtPrice(v: number): string {
+  const abs = Math.abs(v);
+  const digits = abs < 10 ? 4 : abs < 1000 ? 3 : 2;
+  return v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
 function parseWindowFromSlug(slug: string): { startSec: number; durationSec: number } | null {
   const m = slug.match(/-updown-(\d+)m-(\d+)$/);
   if (!m) {
@@ -60,7 +66,7 @@ function ChartTooltip({ active, payload, label }: any) {
     <div style={{ background: "rgba(10,10,13,0.97)", border: "1px solid rgba(247,147,26,0.3)", borderRadius: 8, padding: "6px 12px", backdropFilter: "blur(12px)" }}>
       <p style={{ color: "#6b7280", fontSize: 9, marginBottom: 2 }}>{label}</p>
       <p style={{ color: "#f7931a", fontWeight: 700, fontSize: 14 }}>
-        ${Number(payload[0].value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        ${fmtPrice(Number(payload[0].value))}
       </p>
     </div>
   );
@@ -99,7 +105,7 @@ export default function LiveCryptoChart({ spotData, priceToBeat, spotSymbol, slu
         <div>
           <p style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Price to beat</p>
           <p style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, color: "#e5e7eb", letterSpacing: "-0.02em", margin: 0 }}>
-            {priceToBeat !== null ? `$${priceToBeat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+            {priceToBeat !== null ? `$${fmtPrice(priceToBeat)}` : "—"}
           </p>
         </div>
 
@@ -109,11 +115,11 @@ export default function LiveCryptoChart({ spotData, priceToBeat, spotSymbol, slu
           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
             {delta !== null && (
               <span style={{ fontSize: 13, fontWeight: 700, color: above ? "#34d399" : "#f87171" }}>
-                {above ? "▲" : "▼"} ${Math.abs(delta).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {above ? "▲" : "▼"} ${fmtPrice(Math.abs(delta))}
               </span>
             )}
             <span style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, color: "#f7931a", letterSpacing: "-0.02em" }}>
-              {currentPrice !== null ? `$${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+              {currentPrice !== null ? `$${fmtPrice(currentPrice)}` : "—"}
             </span>
           </div>
         </div>
@@ -161,7 +167,7 @@ export default function LiveCryptoChart({ spotData, priceToBeat, spotSymbol, slu
                   tick={{ fill: "#4b5563", fontSize: 9 }}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(v) => `$${Number(v).toLocaleString()}`}
+                  tickFormatter={(v) => `$${fmtPrice(Number(v))}`}
                   width={70}
                 />
                 {priceToBeat !== null && (
@@ -171,7 +177,7 @@ export default function LiveCryptoChart({ spotData, priceToBeat, spotSymbol, slu
                     strokeDasharray="6 3"
                     strokeWidth={1.5}
                     label={{
-                      value: `Target $${priceToBeat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                      value: `Target $${fmtPrice(priceToBeat)}`,
                       fill: "#d4a054",
                       fontSize: 9,
                       position: "right",
