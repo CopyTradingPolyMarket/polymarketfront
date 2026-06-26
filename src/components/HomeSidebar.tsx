@@ -10,10 +10,10 @@ import { useCategoriesMarkets } from "@/src/services/useCategoryMarkets";
 // extend freely; `category` must match a tag your API actually filters on, and
 // `href` is where the section's › arrow navigates.
 const SIDEBAR_SECTIONS = [
-  { id: "elections", title: "Elections", category: "Elections", href: "?category=Elections" },
-  { id: "politics",  title: "Politics",  category: "Politics",  href: "?category=Politics" },
-  { id: "sports",    title: "Sports",    category: "Sports",    href: "?category=Sports" },
-  { id: "crypto",    title: "Crypto",    category: "Crypto",    href: "?category=Crypto" },
+  { id: "elections", title: "Elections", category: "Elections", href: "/category/Elections" },
+  { id: "politics",  title: "Politics",  category: "Politics",  href: "/category/Politics" },
+  { id: "sports",    title: "Sports",    category: "Sports",    href: "/category/Sports" },
+  { id: "crypto",    title: "Crypto",    category: "Crypto",    href: "/category/Crypto" },
 ] as const;
 
 const ROWS_PER_SECTION = 3;
