@@ -317,7 +317,7 @@ function CategorySection({
   return (
     <div className="mb-10">
       <button
-        onClick={() => router.push(`?category=${encodeURIComponent(data.category)}`)}
+        onClick={() => router.push(`/category/${encodeURIComponent(data.category)}`)}
         className="flex items-center gap-1.5 mb-4 group"
       >
         <h2 className="text-[19px] font-bold text-white cursor-pointer">{data.category}</h2>

@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { slugify } from "@/lib/slugify";
+import { useLivePrices } from "@/src/services/livePrices";
 
 export interface MarketOption {
   label: string;
@@ -10,6 +11,8 @@ export interface MarketOption {
   multiplier?: number; // payout shown as "x" — falls back to an implied value if API doesn't send one yet
   image?: string;      // optional small icon/logo for this option (e.g. team logo)
   color?: string;      // optional accent color for this option's underline — falls back to a stable per-index color
+  conditionId?: string;          // sub-market conditionId → live subscription key on /ws/prices
+  priceSide?: "yes" | "no";      // which side of the conditionId's price_update this option reflects (default "yes")
 }
 
 export interface Market {
@@ -45,6 +48,42 @@ function OptionRow({ option, index, onClick }: { option: MarketOption; index: nu
   const multiplier = option.multiplier ?? impliedMultiplier(option.probability);
   const pct = Math.round(option.probability);
 
+  // Detect live changes → subtle glow on the pill + a light sweep on the bar.
+  const prevPct = useRef(pct);
+  const sweepRef = useRef<HTMLDivElement>(null);
+  const [dir, setDir] = useState<"up" | "down" | null>(null);
+
+  useEffect(() => {
+    if (prevPct.current === pct) return;
+    setDir(pct > prevPct.current ? "up" : "down");
+    prevPct.current = pct;
+
+    // sweep a soft light across the bar
+    const el = sweepRef.current;
+    if (el && typeof el.animate === "function") {
+      el.animate(
+        [
+          { transform: "translateX(-130%)", opacity: 0 },
+          { transform: "translateX(-15%)", opacity: 1, offset: 0.5 },
+          { transform: "translateX(160%)", opacity: 0 },
+        ],
+        { duration: 750, easing: "ease-out" }
+      );
+    }
+
+    const t = setTimeout(() => setDir(null), 600);
+    return () => clearTimeout(t);
+  }, [pct]);
+
+  const flashGlow =
+    dir === "up"
+      ? "0 0 10px rgba(52,211,153,0.3)"
+      : dir === "down"
+      ? "0 0 10px rgba(248,113,113,0.3)"
+      : "none";
+  const flashBorder =
+    dir === "up" ? "rgba(52,211,153,0.55)" : dir === "down" ? "rgba(248,113,113,0.55)" : undefined;
+
   return (
     <div
       onClick={(e) => {
@@ -61,9 +100,20 @@ function OptionRow({ option, index, onClick }: { option: MarketOption; index: nu
         <div className="min-w-0 flex-1">
           <p className="text-[12px] text-white leading-none truncate">{option.label}</p>
           <div
-            className="h-[2.5px] rounded-full mt-1.5"
-            style={{ width: `${Math.max(pct, 5)}%`, minWidth: 14, background: color }}
-          />
+            className="relative h-[2.5px] rounded-full mt-1.5 overflow-hidden transition-[width] duration-500 ease-out"
+            style={{ width: `${Math.max(pct, 5)}%`, minWidth: 14 }}
+          >
+            <div className="absolute inset-0 rounded-full" style={{ background: color }} />
+            {/* light sweep overlay */}
+            <div
+              ref={sweepRef}
+              className="absolute inset-y-0 left-0 w-1/2 rounded-full pointer-events-none"
+              style={{
+                opacity: 0,
+                background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.95), transparent)",
+              }}
+            />
+          </div>
         </div>
       </div>
 
@@ -72,7 +122,10 @@ function OptionRow({ option, index, onClick }: { option: MarketOption; index: nu
         <span className="text-[11px] text-gray-500 tabular-nums text-right min-w-[40px]">
           {multiplier.toFixed(2)}x
         </span>
-        <span className="text-[11px] font-bold text-white border border-emerald-500/50 rounded-full px-3 py-1 tabular-nums text-center min-w-[56px]">
+        <span
+          className="text-[11px] font-bold text-white border border-emerald-500/50 rounded-full px-3 py-1 tabular-nums text-center min-w-[56px] transition-[box-shadow,border-color] duration-500 ease-out"
+          style={{ borderColor: flashBorder, boxShadow: flashGlow }}
+        >
           {pct}%
         </span>
       </div>
@@ -85,6 +138,17 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
   const slug = market.slug ?? slugify(market.title);
   const displayOptions = market.options.slice(0, 2);
   const optionsCount = market.optionsCount ?? market.options.length;
+
+  // Subscribe the visible options to live /ws/prices and merge the latest
+  // value in. When a live price exists we drop the static multiplier so it
+  // recomputes from the new probability.
+  const live = useLivePrices(displayOptions.map((o) => o.conditionId));
+  const liveOptions = displayOptions.map((o) => {
+    const p = o.conditionId ? live[o.conditionId] : undefined;
+    if (!p) return o;
+    const probability = o.priceSide === "no" ? p.no : p.yes;
+    return { ...o, probability, multiplier: undefined };
+  });
 
   return (
     <div
@@ -110,7 +174,7 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
 
       {/* OPTIONS */}
       <div className="flex flex-col gap-1">
-        {displayOptions.map((opt, i) => (
+        {liveOptions.map((opt, i) => (
           <OptionRow key={opt.label} option={opt} index={i} onClick={() => onSelect?.(market.id, opt.label)} />
         ))}
       </div>
