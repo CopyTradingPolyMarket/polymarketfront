@@ -10,7 +10,7 @@ export interface MarketOption {
 }
 
 export interface Market {
-  type?: "market" | "event";
+  type?: "market" | "event" | "game";
   id: string;
   title: string;
   image: string;
@@ -20,6 +20,7 @@ export interface Market {
   eventId?: string;
   eventMarketCount?: number;
   eventSlug?: string;
+  gameId?: number | null;
 }
 
 interface Props {
@@ -31,6 +32,8 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
   const router = useRouter();
   const slug = market.slug ?? slugify(market.title);
   const isEvent = market.type === "event";
+  const isGame  = market.type === "game";
+  const isGrouped = isEvent || isGame;
 
   const yesOpt = market.options.find((o) => o.label.toLowerCase() === "yes") ?? market.options[0];
   const noOpt  = market.options.find((o) => o.label.toLowerCase() === "no")  ?? market.options[1];
@@ -38,12 +41,15 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
   return (
     <div
       onClick={() => {
-        const dest = isEvent && market.eventSlug
-          ? `/events/${market.eventSlug}`
-          : (market.eventMarketCount ?? 0) >= 2 && market.eventSlug
-            ? `/events/${market.eventSlug}`
-            : `/markets/${slug}`;
-        router.push(dest);
+        if (isGame && market.gameId) {
+          router.push(`/sports/${market.gameId}`);
+        } else if (isEvent && market.eventSlug) {
+          router.push(`/events/${market.eventSlug}`);
+        } else if ((market.eventMarketCount ?? 0) >= 2 && market.eventSlug) {
+          router.push(`/events/${market.eventSlug}`);
+        } else {
+          router.push(`/markets/${slug}`);
+        }
       }}
       className="cursor-pointer w-full rounded-2xl border border-white/5 bg-[#111113] p-4 flex flex-col gap-4 hover:border-white/10 transition"
     >
@@ -61,13 +67,13 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
       </div>
 
       {/* OPTIONS */}
-      {isEvent ? (
-        /* Event card: show outcome count badge instead of Yes/No */
+      {isGrouped ? (
+        /* Event/Game card: show market count badge instead of Yes/No */
         <div className="flex items-center gap-2">
           <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-gray-400 border border-white/8">
-            {market.eventMarketCount ?? 0} outcomes
+            {market.eventMarketCount ?? 0} {isGame ? "markets" : "outcomes"}
           </span>
-          <span className="text-[11px] text-gray-600">View all</span>
+          <span className="text-[11px] text-gray-600">{isGame ? "View game" : "View all"}</span>
         </div>
       ) : (
         /* Market card: standard Yes/No probability row */

@@ -10,7 +10,7 @@ import LiveSportsList from "./LiveSportsList";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 interface ApiMarket {
-  type?: "market" | "event";
+  type?: "market" | "event" | "game";
   id: string;
   title: string;
   image: string | null;
@@ -20,6 +20,7 @@ interface ApiMarket {
   eventId: string | null;
   eventMarketCount?: number;
   eventSlug?: string | null;
+  gameId?: number | null;
 }
 
 interface ApiResponse {
@@ -36,12 +37,12 @@ function formatVolume(v: number): string {
 }
 
 function mapMarket(api: ApiMarket): Market {
-  const isEvent = api.type === "event";
+  const isGrouped = api.type === "event" || api.type === "game";
   return {
     type:    api.type ?? "market",
     id:      api.id,
-    // For event cards use the event title as-is; for market cards apply live-crypto rename
-    title:   isEvent ? api.title : ((api.slug && formatLiveCryptoTitle(api.slug)) ?? api.title),
+    // For event/game cards use the title as-is; for market cards apply live-crypto rename
+    title:   isGrouped ? api.title : ((api.slug && formatLiveCryptoTitle(api.slug)) ?? api.title),
     image:   api.image ?? "",
     volume:  formatVolume(api.volume),
     options: api.options,
@@ -49,6 +50,7 @@ function mapMarket(api: ApiMarket): Market {
     eventId: api.eventId ?? "",
     eventMarketCount: api.eventMarketCount ?? 1,
     eventSlug: api.eventSlug ?? undefined,
+    gameId:  api.gameId ?? undefined,
   };
 }
 
