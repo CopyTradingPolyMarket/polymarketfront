@@ -2,7 +2,8 @@
 
 import { useState, useCallback } from "react";
 import FeaturedMarkets from "./Featuredmarkets";
-import TopTraders from "./TopTraders";
+import DiscoverSidebar from "./DiscoverSidebar";
+import InfoCards from "./InfoCards";
 
 function ChevronLeft() {
   return (
@@ -30,13 +31,13 @@ export default function HeroSection() {
 
   return (
     <section
-      className="w-full border-b border-white/[0.05] px-4 py-5"
-      style={{ background: "#111113", fontFamily: "'DM Sans', sans-serif" }}
+      className="w-full px-4 pt-5"
+      style={{ background: "#0E0E10", fontFamily: "'DM Sans', sans-serif" }}
     >
-      <div className="max-w-screen-xl mx-auto flex flex-col lg:flex-row gap-4 lg:items-stretch">
+      <div className="w-[60%] mx-auto flex flex-col lg:flex-row gap-4 lg:items-start">
 
         {/* LEFT — carousel + controls below */}
-        <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex-1 min-w-0 flex flex-col w-[70%]">
           <FeaturedMarkets
             externalIndex={index}
             setExternalIndex={setIndex}
@@ -88,18 +89,15 @@ export default function HeroSection() {
               </button>
             </div>
           </div>
+            {/* Education / info cards — full width below the hero row */}
+            <div className="max-w-screen-xl mx-auto mt-4">
+              <InfoCards />
+            </div>
         </div>
 
-        {/* RIGHT — Top Traders, samostalna kartica bez ikakvih kontrola */}
-        <aside className="w-full lg:w-[288px] shrink-0">
-          <div
-            className="rounded-2xl flex flex-col px-4 py-4 border border-white/[0.07]"
-            style={{ background: "#111214", height: 580 }}
-          >
-            <div className="flex-1 min-h-0 flex flex-col">
-              <TopTraders />
-            </div>
-          </div>
+        {/* RIGHT — discover panel (promo + featured links + customize) */}
+        <aside className="w-full lg:w-[30%] shrink-0">
+          <DiscoverSidebar />
         </aside>
 
       </div>

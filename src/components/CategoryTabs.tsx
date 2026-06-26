@@ -1,12 +1,11 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import MoreDropdown from "./MoreDropdown";
 
 // ─── Sort tabs ───────────────────────────────────────────────────────────────
 // "Breaking" has no true API sort; it sends sort=volume to the backend.
-// We store sort=breaking in the URL so it has its own distinct active state
-// (if we stored sort=volume, Trending and Breaking would both highlight at once).
+// We store sort=breaking in the URL so it has its own distinct active state.
 
 const SORT_TABS: { label: string; sortParam: string; icon?: boolean }[] = [
   { label: "Trending", sortParam: "volume", icon: true },
@@ -33,48 +32,45 @@ function TrendingIcon() {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function CategoryTabs() {
-  const router      = useRouter();
+  const router       = useRouter();
   const searchParams = useSearchParams();
+  const pathname     = usePathname();
 
-  // Read current values from URL; empty string = "not set" = default.
   const currentSort     = searchParams.get("sort")     ?? "";
   const currentCategory = searchParams.get("category") ?? "";
 
-  /** Pushes a sort change, preserving category. Deletes page so list resets. */
+  // When we're on a /category/<X> page, the active category comes from the path.
+  const pathCategory = pathname?.startsWith("/category/")
+    ? decodeURIComponent(pathname.slice("/category/".length))
+    : "";
+  const activeCategory = pathCategory || currentCategory;
+
+  /** Sort change (still drives the home feed). */
   const selectSort = (sortParam: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    // Remove sort param when selecting the default (volume / Trending) for a clean URL.
-    if (sortParam === "volume") {
-      params.delete("sort");
-    } else {
-      params.set("sort", sortParam);
-    }
+    if (sortParam === "volume") params.delete("sort");
+    else params.set("sort", sortParam);
     params.delete("page");
     router.push(`/?${params.toString()}`);
   };
 
-  /** Pushes a category change, preserving sort. Deletes page so list resets. */
+  /** Category change → dedicated category page (All → home). */
   const selectCategory = (cat: string) => {
-    const params = new URLSearchParams(searchParams.toString());
     if (cat === "All") {
-      params.delete("category");
-    } else {
-      params.set("category", cat);
+      router.push("/");
+      return;
     }
-    params.delete("page");
-    router.push(`/?${params.toString()}`);
+    router.push(`/category/${encodeURIComponent(cat)}`);
   };
 
-  /** Active when: sortParam=volume → no sort param or sort=volume; else exact match. */
   const isSortActive = (sortParam: string): boolean => {
     if (sortParam === "volume") return !currentSort || currentSort === "volume";
     return currentSort === sortParam;
   };
 
-  /** Active when: "All" → no category param; else exact string match. */
   const isCategoryActive = (cat: string): boolean => {
-    if (cat === "All") return !currentCategory;
-    return currentCategory === cat;
+    if (cat === "All") return !activeCategory;
+    return activeCategory === cat;
   };
 
   const tabCls = (active: boolean) =>
@@ -84,7 +80,6 @@ export default function CategoryTabs() {
 
   return (
     <nav className="border-b border-[#1e1f23] px-4">
-      {/* overflow-x scroll wrapper — must NOT be on the ul itself or it clips the MoreDropdown */}
       <div className="overflow-x-auto scrollbar-none">
         <ul className="flex items-center gap-0">
 
@@ -115,7 +110,6 @@ export default function CategoryTabs() {
             </li>
           ))}
 
-          {/* More — hover dropdown (Traders / Markets nav; unrelated to category filtering) */}
           <MoreDropdown />
 
         </ul>

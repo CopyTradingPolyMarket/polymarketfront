@@ -215,7 +215,7 @@ export default function Navbar() {
 
   return (
     <>
-      <header className="w-full bg-[#111113] sticky top-0 z-50 font-['DM_Sans',_sans-serif]">
+      <header className="w-full bg-[#0E0E10] sticky top-0 z-50 font-['DM_Sans',_sans-serif]">
 
         {/* TOP BAR */}
         <div className="flex items-center justify-between px-4 py-8 h-12 w-full md:w-[60%] mx-auto">
