@@ -58,13 +58,37 @@ function abbrev(name: string): string {
   return name.slice(0, 3).toUpperCase();
 }
 
+const WINNER_TYPES = ["moneyline", "baseball_team_first_five_winner", "child_moneyline"];
+const WINNER_PATTERN = /winner|moneyline|h2h/i;
+
 export function getMoneylines(game: Game): GameMarket[] {
-  return game.markets.filter((m) => m.sportsMarketType === "moneyline");
+  for (const t of WINNER_TYPES) {
+    const group = game.markets.filter((m) => m.sportsMarketType === t);
+    if (group.length > 0) return group;
+  }
+  const byType = new Map<string, GameMarket[]>();
+  for (const m of game.markets) {
+    const t = m.sportsMarketType;
+    if (t && WINNER_PATTERN.test(t)) {
+      const arr = byType.get(t) ?? [];
+      arr.push(m);
+      byType.set(t, arr);
+    }
+  }
+  for (const [, group] of byType) {
+    if (group.length >= 2 && group.length <= 3) return group;
+  }
+  const fallback = game.markets.filter((m) => m.options.length >= 2);
+  if (fallback.length > 0) {
+    fallback.sort((a, b) => b.volume - a.volume);
+    return [fallback[0]];
+  }
+  return [];
 }
 
 function extractMlLabel(title: string): string {
-  if (/\bdraw\b|\btie\b/i.test(title)) return "Draw";
-  const m = title.match(/^Will (.+?) win\b/i);
+  if (/\bdraw\b|\btie\b|\btied\b/i.test(title)) return "Draw";
+  const m = title.match(/^Will (.+?) (?:win|be winning)\b/i);
   if (m) return m[1];
   return title.split(":")[0].trim();
 }
