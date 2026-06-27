@@ -137,14 +137,17 @@ function MoneylineCol({ markets, homeTeam, awayTeam }: { markets: GameMarket[]; 
   // 3-way: each market is a binary "Will X win?" / "end in draw?" — use Yes price per market
   if (markets.length >= 3) {
     type Outcome = { label: string; cents: number; order: number };
-    const outcomes: Outcome[] = markets.map((m) => {
-      const raw = extractMlLabel(m.title);
-      const isDraw = /\bdraw\b|\btie\b/i.test(m.title);
-      const label = isDraw ? "Draw" : abbrev(raw);
-      const cents = Math.round(m.options[0]?.probability ?? 0);
-      const order = isDraw ? 1 : m.title.toLowerCase().includes(homeTeam.toLowerCase()) ? 0 : 2;
-      return { label, cents, order };
-    });
+    const outcomes: Outcome[] = markets
+      .map((m) => {
+        const raw = extractMlLabel(m.title);
+        const isDraw = /\bdraw\b|\btie\b|\btied\b/i.test(m.title);
+        const label = isDraw ? "Draw" : abbrev(raw);
+        const cents = Math.round(m.options[0]?.probability ?? 0);
+        const order = isDraw ? 1 : m.title.toLowerCase().includes(homeTeam.toLowerCase()) ? 0 : 2;
+        return { label, cents, order };
+      })
+      .filter((o) => o.cents > 0);
+    if (outcomes.length === 0) return <EmptyCol />;
     outcomes.sort((a, b) => a.order - b.order);
     const maxCents = Math.max(...outcomes.map((o) => o.cents));
     return (
