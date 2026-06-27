@@ -3,28 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { API_BASE as API } from "@/src/config/api";
+import { timeAgo } from "@/src/utils/dateFormatters";
+import { AVATAR_GRADIENTS } from "@/src/constants/avatarGradients";
+import type { Comment, CommentUser } from "@/src/types/comment";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface CommentUser {
-  id: string;
-  slug: string;
-  username: string;
-  avatarUrl: string | null;
-}
-
-
-interface Comment {
-  id: string;
-  parentId: string | null;
-  user: CommentUser;
-  body: string;
-  likes: number;
-  likedByMe: boolean;
-  createdAt: string;
-  replies: Comment[];
-}
 
 interface CommentsProps {
   conditionId?: string;
@@ -33,31 +17,10 @@ interface CommentsProps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  const h = Math.floor(diff / 3600000);
-  const d = Math.floor(diff / 86400000);
-  if (m < 1) return "now";
-  if (m < 60) return `${m}m`;
-  if (h < 24) return `${h}h`;
-  if (d < 30) return `${d}d`;
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
 function avatarGradient(seed: string): string {
-  const palettes = [
-    "linear-gradient(135deg,#6366f1,#8b5cf6)",
-    "linear-gradient(135deg,#0ea5e9,#06b6d4)",
-    "linear-gradient(135deg,#f59e0b,#ef4444)",
-    "linear-gradient(135deg,#10b981,#059669)",
-    "linear-gradient(135deg,#ec4899,#f43f5e)",
-    "linear-gradient(135deg,#8b5cf6,#d946ef)",
-    "linear-gradient(135deg,#14b8a6,#0ea5e9)",
-  ];
   let hash = 0;
-  for (let i = 0; i < seed.length; i++) hash = (hash + seed.charCodeAt(i)) % palettes.length;
-  return palettes[hash];
+  for (let i = 0; i < seed.length; i++) hash = (hash + seed.charCodeAt(i)) % AVATAR_GRADIENTS.length;
+  return AVATAR_GRADIENTS[hash];
 }
 
 function countAll(comments: Comment[]): number {

@@ -1,5 +1,6 @@
 import { formatLiveCryptoTitle } from "@/lib/liveCryptoTitle";
 import type { Market, MarketOption } from "@/src/components/Marketcard";
+import { formatVolume as formatVolumeBase } from "@/src/utils/formatters";
 
 // Top-level categories we recognize inside the noisy `tags` array. Reorder /
 // extend to match your taxonomy. Exported so other modules share one source.
@@ -38,9 +39,7 @@ export function categoryFromTags(tags: string[] | undefined): string | undefined
 }
 
 export function formatVolume(v: number): string {
-  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M vol`;
-  if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K vol`;
-  return `$${v.toFixed(0)} vol`;
+  return formatVolumeBase(v, { suffix: " vol" });
 }
 
 // --- eventId grouping (same logic as the home feed) -------------------------

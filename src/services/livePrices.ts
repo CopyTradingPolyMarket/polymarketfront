@@ -7,8 +7,7 @@ import { useEffect, useState } from "react";
 // single connection. On every price_update we fan out the latest {yes,no} to
 // listeners of that conditionId.
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-const WS_BASE  = API_BASE.replace(/^http/, "ws");
+import { API_BASE, WS_BASE } from "@/src/config/api";
 
 export interface LivePrice {
   yes: number;

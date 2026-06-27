@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { API_BASE as API } from "@/src/config/api";
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────

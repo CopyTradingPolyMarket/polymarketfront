@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { formatVolume } from "@/src/utils/formatters";
 
 export interface MarketOption {
   label: string;
@@ -55,12 +56,6 @@ function abbrev(name: string): string {
   const words = name.split(/\s+/);
   if (words.length >= 2) return words.map((w) => w[0]).join("").toUpperCase().slice(0, 3);
   return name.slice(0, 3).toUpperCase();
-}
-
-function formatVol(v: number): string {
-  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}K`;
-  return `$${v.toFixed(0)}`;
 }
 
 export function getMoneylines(game: Game): GameMarket[] {
@@ -208,7 +203,7 @@ export default function GameCard({ game, showColumns }: { game: Game; showColumn
             <span className={`text-[10px] font-semibold uppercase tracking-wider ${game.live ? "text-red-400" : "text-gray-600"}`}>
               {label}
             </span>
-            {totalVol > 0 && <span className="text-[10px] text-gray-600 ml-auto">{formatVol(totalVol)} Vol</span>}
+            {totalVol > 0 && <span className="text-[10px] text-gray-600 ml-auto">{formatVolume(totalVol, { thousandDigits: 1 })} Vol</span>}
           </div>
 
           {/* Home team */}

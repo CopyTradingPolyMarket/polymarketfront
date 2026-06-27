@@ -8,7 +8,8 @@ import { formatLiveCryptoTitle } from "@/lib/liveCryptoTitle";
 import LiveSportsList from "./LiveSportsList";
 import { fetchCategoryMarkets } from "@/src/services/useCategoryMarkets";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { API_BASE } from "@/src/config/api";
+import { formatVolume } from "@/src/utils/formatters";
 
 // `tags` mixes broad categories ("Soccer", "Sports") with narrower/dynamic
 // tags ("2026 FIFA World Cup", "Hide From New"). We pick the category by
@@ -56,12 +57,6 @@ interface ApiResponse {
   total: number;
 }
 
-function formatVolume(v: number): string {
-  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M vol`;
-  if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K vol`;
-  return `$${v.toFixed(0)} vol`;
-}
-
 function mapMarket(api: ApiMarket): Market {
   const isGrouped = api.type === "event" || api.type === "game";
   return {
@@ -69,7 +64,7 @@ function mapMarket(api: ApiMarket): Market {
     id:            api.id,
     title:         isGrouped ? api.title : ((api.slug && formatLiveCryptoTitle(api.slug)) ?? api.title),
     image:         api.image ?? "",
-    volume:        formatVolume(api.volume),
+    volume:        formatVolume(api.volume, { suffix: " vol" }),
     options:       api.options,
     optionsCount:  api.options.length,
     categoryLabel: categoryFromTags(api.tags),

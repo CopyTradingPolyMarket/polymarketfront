@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { useAuth } from "@/src/providers/AuthProvider";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { API_BASE } from "@/src/config/api";
 
 interface Position {
   conditionId: string;

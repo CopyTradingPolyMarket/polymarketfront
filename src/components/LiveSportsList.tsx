@@ -6,8 +6,7 @@ import type { Game } from "./GameCard";
 import SportsSidebar from "./SportsSidebar";
 import type { LeagueItem } from "./SportsSidebar";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-const WS_BASE = API_BASE.replace(/^http/, "ws");
+import { API_BASE, WS_BASE } from "@/src/config/api";
 
 const LEAGUE_LABELS: Record<string, string> = {
   fifwc: "World Cup",

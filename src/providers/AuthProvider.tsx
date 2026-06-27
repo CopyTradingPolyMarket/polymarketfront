@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
+import { API_BASE } from "@/src/config/api";
 
 type User = any;
 
@@ -30,7 +31,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const token = await getAccessToken();
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`, {
+      const res = await fetch(`${API_BASE}/api/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

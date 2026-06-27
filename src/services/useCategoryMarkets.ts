@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { API_BASE } from "@/src/config/api";
 
 // We fetch this many per (category, sort) ONCE, then every consumer slices down
 // to what it needs — so MarketsList (needs ~4) and HomeSidebar (needs ~5) share

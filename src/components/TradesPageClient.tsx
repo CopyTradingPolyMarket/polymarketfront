@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import type { TraderProfile } from "@/types/Traderprofile";
+import { gradientByIndex } from "@/src/constants/avatarGradients";
 
 // ─── Sidebar data ─────────────────────────────────────────────────────────────
 
@@ -30,16 +31,6 @@ const categoryColors: Record<string, { bg: string; text: string }> = {
   Tech:    { bg: "rgba(251,146,60,0.12)",  text: "#fb923c" },
   Culture: { bg: "rgba(236,72,153,0.12)",  text: "#f472b6" },
 };
-
-const AVATAR_COLORS = [
-  "linear-gradient(135deg,#6366f1,#8b5cf6)",
-  "linear-gradient(135deg,#0ea5e9,#06b6d4)",
-  "linear-gradient(135deg,#f59e0b,#ef4444)",
-  "linear-gradient(135deg,#10b981,#059669)",
-  "linear-gradient(135deg,#ec4899,#f43f5e)",
-  "linear-gradient(135deg,#8b5cf6,#d946ef)",
-  "linear-gradient(135deg,#14b8a6,#0ea5e9)",
-];
 
 const TIER_CONFIG = {
   bronze:  { label: "Bronze",  color: "#cd7f32", bg: "rgba(205,127,50,0.12)"  },
@@ -90,7 +81,7 @@ function ListIcon() {
 function TraderGridCard({ trader, rank }: { trader: TraderProfile; rank: number }) {
   const isUp = trader.totalPnlPercent >= 0;
   const tier = TIER_CONFIG[trader.tier];
-  const avatarGrad = AVATAR_COLORS[rank % AVATAR_COLORS.length];
+  const avatarGrad = gradientByIndex(rank);
 
   return (
     <Link
@@ -179,7 +170,7 @@ function TraderGridCard({ trader, rank }: { trader: TraderProfile; rank: number 
 function TraderListRow({ trader, rank }: { trader: TraderProfile; rank: number }) {
   const isUp = trader.totalPnlPercent >= 0;
   const tier = TIER_CONFIG[trader.tier];
-  const avatarGrad = AVATAR_COLORS[rank % AVATAR_COLORS.length];
+  const avatarGrad = gradientByIndex(rank);
 
   return (
     <Link

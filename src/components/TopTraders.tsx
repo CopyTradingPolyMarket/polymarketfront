@@ -4,7 +4,9 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import Link from "next/link";
 import type { Trader } from "@/types/trader";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { API_BASE } from "@/src/config/api";
+import { formatPnl } from "@/src/utils/formatters";
+import { gradientByIndex } from "@/src/constants/avatarGradients";
 
 // ─── API shape ────────────────────────────────────────────────────────────────
 
@@ -17,14 +19,6 @@ interface ApiTraderItem {
   winRate: number;
   followers: number;
   totalTrades: number;
-}
-
-function formatPnl(usdc: number): string {
-  const sign = usdc >= 0 ? "+" : "-";
-  const abs = Math.abs(usdc);
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}$${Math.round(abs).toLocaleString()}`;
-  return `${sign}$${abs.toFixed(2)}`;
 }
 
 function formatFollowers(n: number): string {
@@ -47,16 +41,6 @@ function mapApiTrader(t: ApiTraderItem, rank: number): Trader {
   };
 }
 
-const AVATAR_COLORS = [
-  "linear-gradient(135deg,#6366f1,#8b5cf6)",
-  "linear-gradient(135deg,#0ea5e9,#06b6d4)",
-  "linear-gradient(135deg,#f59e0b,#ef4444)",
-  "linear-gradient(135deg,#10b981,#059669)",
-  "linear-gradient(135deg,#ec4899,#f43f5e)",
-  "linear-gradient(135deg,#8b5cf6,#d946ef)",
-  "linear-gradient(135deg,#14b8a6,#0ea5e9)",
-];
-
 function TrendUp() {
   return (
     <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
@@ -73,7 +57,7 @@ function TrendDown() {
 }
 
 function TraderRow({ trader, idx }: { trader: Trader; idx: number }) {
-  const avatarGrad = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+  const avatarGrad = gradientByIndex(idx);
   const slug = trader.handle.replace("@", "");
 
   return (

@@ -8,7 +8,9 @@ import {
 } from "recharts";
 import { isSportsEvent, SportsMarketSections } from "@/src/components/SportsSections";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { API_BASE as API } from "@/src/config/api";
+import { formatVolume } from "@/src/utils/formatters";
+import { formatRangeDate } from "@/src/utils/dateFormatters";
 
 interface Opt { label: string; probability: number }
 interface Mkt {
@@ -21,12 +23,6 @@ interface EventData {
   id: string; slug: string | null; title: string; description: string | null;
   image: string | null; icon: string | null; volume: number;
   tags: string[]; markets: Mkt[]; relatedEvents: RelEv[];
-}
-
-function fmtVol(v: number) {
-  if (v >= 1e6) return `$${(v/1e6).toFixed(1)}M`;
-  if (v >= 1e3) return `$${(v/1e3).toFixed(1)}K`;
-  return `$${v.toFixed(0)}`;
 }
 
 function deriveLabel(title: string, line: number | null): { arrow: string; label: string } {
@@ -45,13 +41,6 @@ function deriveLabel(title: string, line: number | null): { arrow: string; label
 
 type Range = "1H"|"6H"|"1D"|"1W"|"1M"|"ALL";
 const RANGE_API: Record<Range, string> = { "1H":"1h","6H":"6h","1D":"1d","1W":"1w","1M":"1m","ALL":"all" };
-
-function fmtDate(iso: string, r: string) {
-  const d = new Date(iso);
-  if (r==="1h"||r==="6h") return d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:false});
-  if (r==="1d"||r==="1w") return d.toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",hour12:false});
-  return d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
-}
 
 function PriceBtn({ label, cents, lead, selected, onClick }: { label: string; cents: number; lead: boolean; selected?: boolean; onClick?: () => void }) {
   return (
@@ -134,7 +123,7 @@ export default function EventPage() {
       .then(r => r.ok ? r.json() : { points: [] })
       .then((d: { points: { t: string; p?: number; c?: number }[] }) => {
         setChartData((d.points ?? []).map(pt => ({
-          date: fmtDate(pt.t, RANGE_API[range]),
+          date: formatRangeDate(pt.t, RANGE_API[range]),
           probability: pt.p ?? pt.c ?? 0,
         })));
       });
@@ -175,7 +164,7 @@ export default function EventPage() {
           <div>
             <h1 className="text-[20px] md:text-[24px] font-bold leading-tight">{ev.title}</h1>
             <div className="flex items-center gap-3 mt-2 text-[12px] text-gray-500">
-              <span>{fmtVol(totalVol)} Vol</span>
+              <span>{formatVolume(totalVol, { thousandDigits: 1 })} Vol</span>
               <span>{ev.markets.length} outcome{ev.markets.length !== 1 ? "s" : ""}</span>
             </div>
           </div>
@@ -248,7 +237,7 @@ export default function EventPage() {
                           {arrow && <span className={`text-[16px] ${arrow === "↑" ? "text-emerald-400" : "text-red-400"}`}>{arrow}</span>}
                           <span className="text-[14px] font-semibold text-gray-200 truncate">{label}</span>
                         </div>
-                        <span className="text-[11px] text-gray-600">{fmtVol(m.volume)} Vol</span>
+                        <span className="text-[11px] text-gray-600">{formatVolume(m.volume, { thousandDigits: 1 })} Vol</span>
                       </div>
                       <div className="w-16 text-right">
                         <span className={`text-[16px] font-bold tabular-nums ${p0 > 50 ? "text-emerald-400" : "text-gray-300"}`}>{p0}%</span>

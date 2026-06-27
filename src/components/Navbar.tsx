@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import Howitworks from "./Howitworks";
@@ -9,6 +9,8 @@ import AuthModal from "./AuthModal";
 import CategoryTabs from "./CategoryTabs";
 import Image from "next/image";
 import Link from "next/link";
+import { API_BASE } from "@/src/config/api";
+import { formatVolume } from "@/src/utils/formatters";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -53,8 +55,6 @@ function HamburgerIcon() {
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-
 interface SearchResult {
   id: string;
   title: string;
@@ -62,12 +62,6 @@ interface SearchResult {
   volume: number;
   options: { label: string; probability: number }[];
   slug: string;
-}
-
-function formatVol(v: number): string {
-  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M vol`;
-  if (v >= 1_000)     return `$${(v / 1_000).toFixed(0)}K vol`;
-  return `$${v.toFixed(0)} vol`;
 }
 
 function SearchBar() {
@@ -178,7 +172,7 @@ function SearchBar() {
                         {market.title}
                       </p>
                       <span className="text-[11px] text-gray-500 mt-0.5 block">
-                        {formatVol(market.volume)}
+                        {formatVolume(market.volume, { suffix: " vol" })}
                       </span>
                     </div>
                     {yesOpt && (
@@ -229,7 +223,9 @@ export default function Navbar() {
           {/* Search + How it works */}
           <div className="flex">
             <div className="flex-1 max-w-md hidden sm:flex justify-between my-5">
-              <SearchBar />
+              <Suspense fallback={<div className="w-[320px] h-11" />}>
+                <SearchBar />
+              </Suspense>
             </div>
             <button
               onClick={() => setHowItWorksOpen(true)}
@@ -286,7 +282,9 @@ export default function Navbar() {
 
         {/* CATEGORY TABS */}
         <div className="w-full md:w-[60%] mx-auto">
-          <CategoryTabs />
+          <Suspense fallback={<div className="border-b border-[#1e1f23] h-[42px]" />}>
+            <CategoryTabs />
+          </Suspense>
         </div>
 
       </header>

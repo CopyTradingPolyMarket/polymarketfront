@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { API_BASE } from "@/src/config/api";
 
 // ─── Public types ───────────────────────────────────────────────────────────
 //
@@ -35,7 +36,6 @@ interface Props {
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 const DEFAULT_ROWS = 3;
 
 const UP   = "#34d399";

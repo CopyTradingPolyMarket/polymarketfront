@@ -7,7 +7,9 @@ import {
   ResponsiveContainer, Legend,
 } from "recharts";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { API_BASE as API } from "@/src/config/api";
+import { formatVolume } from "@/src/utils/formatters";
+import { formatRangeDate } from "@/src/utils/dateFormatters";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -31,12 +33,6 @@ const LEAGUE: Record<string, string> = {
   lol:"League of Legends",ufc:"UFC",challenger:"Challenger",
 };
 function leagueName(c: string) { return LEAGUE[c.toLowerCase()] ?? c.toUpperCase(); }
-
-function fmtVol(v: number) {
-  if (v >= 1e6) return `$${(v/1e6).toFixed(1)}M`;
-  if (v >= 1e3) return `$${(v/1e3).toFixed(1)}K`;
-  return `$${v.toFixed(0)}`;
-}
 
 function abbr(n: string) {
   if (n.length <= 4) return n.toUpperCase();
@@ -149,13 +145,6 @@ const RANGE_API: Record<Range,string> = { "1H":"1h","6H":"6h","1D":"1d","1W":"1w
 const COLORS = ["#3b82f6","#f59e0b","#6b7280"];
 
 interface ChartPt { date: string; [key: string]: number | string }
-
-function fmtDate(iso: string, r: string) {
-  const d = new Date(iso);
-  if (r==="1h"||r==="6h") return d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:false});
-  if (r==="1d"||r==="1w") return d.toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",hour12:false});
-  return d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
-}
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
@@ -346,7 +335,7 @@ export default function SportsGamePage() {
         }
       });
       const sorted = [...timeMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-      const data: ChartPt[] = sorted.map(([t, vals]) => ({ date: fmtDate(t, apiRange), ...vals }));
+      const data: ChartPt[] = sorted.map(([t, vals]) => ({ date: formatRangeDate(t, apiRange), ...vals }));
       setChartData(data);
       setChartLabels(labels);
     });
@@ -429,7 +418,7 @@ export default function SportsGamePage() {
                 {game.live && <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
                 <span className={`text-[12px] font-semibold ${game.live ? "text-red-400" : "text-gray-500"}`}>{statusLabel(game)}</span>
               </div>
-              {totalVol > 0 && <p className="text-[11px] text-gray-600 mt-1">{fmtVol(totalVol)} Vol</p>}
+              {totalVol > 0 && <p className="text-[11px] text-gray-600 mt-1">{formatVolume(totalVol, { thousandDigits: 1 })} Vol</p>}
             </div>
             {/* Away */}
             <div className="text-center">

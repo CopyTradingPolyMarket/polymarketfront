@@ -16,6 +16,9 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from "recharts";
+import { API_BASE } from "@/src/config/api";
+import { formatVolumeExact } from "@/src/utils/formatters";
+import { formatShortDate } from "@/src/utils/dateFormatters";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,8 +54,6 @@ export interface FeaturedMarket {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 const FEATURED_CATEGORIES = [
   "Sports", "Crypto", "Politics", "Elections", "Culture", "Tech", "AI",
@@ -137,25 +138,9 @@ const CATEGORY_DOT: Record<string, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmtVol(v: number): string {
-  if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(1)}B`;
-  if (v >= 1_000_000)     return `$${(v / 1_000_000).toFixed(0)}M`;
-  if (v >= 1_000)         return `$${(v / 1_000).toFixed(0)}K`;
-  return `$${v.toFixed(0)}`;
-}
-
-function fmtVolExact(v: number): string {
-  return `$${Math.round(v).toLocaleString("en-US")} vol`;
-}
-
 function impliedMultiplier(percent: number): number {
   if (percent <= 0) return 0;
   return Math.round((100 / percent) * 100) / 100;
-}
-
-function fmtDate(ms: number): string {
-  const d = new Date(ms);
-  return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
 }
 
 // Parse a market title into an option label + the parent event title.
@@ -352,7 +337,7 @@ function useFeaturedMarkets(onLoad?: (count: number) => void) {
           title: b.title,
           options: b.options,
           optionsCount: b.isEvent ? b.group.length : b.options.length,
-          volume: fmtVolExact(totalVol),
+          volume: formatVolumeExact(totalVol),
           eventId: b.eventId,
           conditionId: b.conditionId,
         };
@@ -458,7 +443,7 @@ function ChartTooltip({ active, payload, label }: any) {
         fontFamily:  "'DM Mono', monospace",
       }}
     >
-      <div className="text-gray-500 text-[10px]">{fmtDate(label)}</div>
+      <div className="text-gray-500 text-[10px]">{formatShortDate(label)}</div>
       {payload
         .filter((p: any) => p.value != null)
         .map((p: any) => (
@@ -526,7 +511,7 @@ function MultiLineChart({ series }: { series: ChartSeries[] }) {
           scale="time"
           domain={["dataMin", "dataMax"]}
           ticks={ticks}
-          tickFormatter={fmtDate}
+          tickFormatter={formatShortDate}
           tick={{ fontSize: 9, fill: "#6b7280" }}
           axisLine={false}
           tickLine={false}

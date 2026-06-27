@@ -3,7 +3,8 @@ import TraderProfileClient from "@/src/components/TraderProfileClient";
 import SuggestedTradersSidebar from "@/src/components/SuggestedTradersSidebar";
 import type { TraderProfile, TraderTrade, EarningsPoint, SuggestedTrader } from "@/types/Traderprofile";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { API_BASE } from "@/src/config/api";
+import { formatPnl, formatVolume } from "@/src/utils/formatters";
 
 // ─── API response shapes ───────────────────────────────────────────────────────
 
@@ -82,20 +83,6 @@ function mapSuggestedTrader(api: ApiTraderListItem): SuggestedTrader {
 
 // ─── Formatters ────────────────────────────────────────────────────────────────
 
-function formatPnl(usdc: number): string {
-  const sign = usdc >= 0 ? "+" : "-";
-  const abs = Math.abs(usdc);
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}$${Math.round(abs).toLocaleString()}`;
-  return `${sign}$${abs.toFixed(2)}`;
-}
-
-function formatVolume(usdc: number): string {
-  if (usdc >= 1_000_000) return `$${(usdc / 1_000_000).toFixed(1)}M`;
-  if (usdc >= 1_000) return `$${(usdc / 1_000).toFixed(0)}K`;
-  return `$${usdc.toFixed(2)}`;
-}
-
 // ─── Mappers ───────────────────────────────────────────────────────────────────
 
 function mapProfile(api: ApiProfile): TraderProfile {
@@ -121,7 +108,7 @@ function mapProfile(api: ApiProfile): TraderProfile {
     bestTrade:        api.bestTrade ?? "—",
     bestTradePercent: Math.round(api.bestTradePercent),
     streak:           api.streak,
-    volumeTraded:     formatVolume(api.volumeTraded),
+    volumeTraded:     formatVolume(api.volumeTraded, { baseDigits: 2 }),
     volumeTradedRaw:  api.volumeTraded,
     isVerified:       api.isVerified,
     tier:             api.tier,

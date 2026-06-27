@@ -7,7 +7,7 @@ import { formatVolume, type ApiMarket } from "@/src/services/marketGrouping";
 import { formatLiveCryptoTitle } from "@/lib/liveCryptoTitle";
 import type { Market } from "./Marketcard";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { API_BASE } from "@/src/config/api";
 
 // One generous fetch per category; subcategory filtering is done client-side
 // from this batch. Raise if subcategories look thin, or switch to server-side
