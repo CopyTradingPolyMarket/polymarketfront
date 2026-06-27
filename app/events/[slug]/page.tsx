@@ -13,6 +13,7 @@ interface Opt { label: string; probability: number }
 interface Mkt {
   id: string; title: string; slug: string | null; volume: number;
   sportsMarketType: string | null; line: number | null; options: Opt[];
+  groupItemTitle?: string | null;
 }
 interface RelEv { id: string; slug: string | null; title: string; icon: string | null }
 interface EventData {
@@ -224,7 +225,9 @@ export default function EventPage() {
                 {ev.markets.map(m => {
                   const p0 = Math.round(m.options[0]?.probability ?? 0);
                   const p1 = Math.round(m.options[1]?.probability ?? 0);
-                  const { arrow, label } = deriveLabel(m.title, m.line);
+                  const { arrow, label } = m.groupItemTitle
+                    ? { arrow: "", label: m.groupItemTitle }
+                    : deriveLabel(m.title, m.line);
                   const isSelected = selectedMkt?.id === m.id;
 
                   return (
