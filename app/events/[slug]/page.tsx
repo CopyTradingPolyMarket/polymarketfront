@@ -6,6 +6,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { isSportsEvent, SportsMarketSections } from "@/src/components/SportsSections";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -13,6 +14,7 @@ interface Opt { label: string; probability: number }
 interface Mkt {
   id: string; title: string; slug: string | null; volume: number;
   sportsMarketType: string | null; line: number | null; options: Opt[];
+  groupItemTitle?: string | null;
 }
 interface RelEv { id: string; slug: string | null; title: string; icon: string | null }
 interface EventData {
@@ -214,7 +216,16 @@ export default function EventPage() {
               </div>
             )}
 
-            {/* Market rows */}
+            {/* Market sections */}
+            {isSportsEvent(ev.markets) ? (
+              <SportsMarketSections
+                markets={ev.markets}
+                homeTeam={ev.title.split(/\s+vs\.?\s+/i)[0] ?? ev.title}
+                awayTeam={ev.title.split(/\s+vs\.?\s+/i)[1]?.replace(/ - .*$/, '') ?? ""}
+                onSelect={handleSelect}
+                selectedId={selectedMkt?.id ?? null}
+              />
+            ) : (
             <div className="rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-5">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-[14px] font-semibold text-gray-200">Outcomes</h2>
@@ -224,13 +235,14 @@ export default function EventPage() {
                 {ev.markets.map(m => {
                   const p0 = Math.round(m.options[0]?.probability ?? 0);
                   const p1 = Math.round(m.options[1]?.probability ?? 0);
-                  const { arrow, label } = deriveLabel(m.title, m.line);
+                  const { arrow, label } = m.groupItemTitle
+                    ? { arrow: "", label: m.groupItemTitle }
+                    : deriveLabel(m.title, m.line);
                   const isSelected = selectedMkt?.id === m.id;
 
                   return (
                     <div key={m.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${isSelected ? "bg-blue-500/10 border border-blue-500/20" : "hover:bg-white/[0.03] border border-transparent"}`}
                       onClick={() => handleSelect(m, "yes")}>
-                      {/* Label + % */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           {arrow && <span className={`text-[16px] ${arrow === "↑" ? "text-emerald-400" : "text-red-400"}`}>{arrow}</span>}
@@ -238,11 +250,9 @@ export default function EventPage() {
                         </div>
                         <span className="text-[11px] text-gray-600">{fmtVol(m.volume)} Vol</span>
                       </div>
-                      {/* Probability bar */}
                       <div className="w-16 text-right">
                         <span className={`text-[16px] font-bold tabular-nums ${p0 > 50 ? "text-emerald-400" : "text-gray-300"}`}>{p0}%</span>
                       </div>
-                      {/* Buy buttons */}
                       <div className="flex gap-1.5 shrink-0">
                         <PriceBtn label="Yes" cents={p0} lead={p0 > p1} selected={isSelected && selectedSide === "yes"} onClick={() => handleSelect(m, "yes")} />
                         <PriceBtn label="No" cents={p1} lead={p1 > p0} selected={isSelected && selectedSide === "no"} onClick={() => handleSelect(m, "no")} />
@@ -252,6 +262,7 @@ export default function EventPage() {
                 })}
               </div>
             </div>
+            )}
 
             {/* Description */}
             {ev.description && (
