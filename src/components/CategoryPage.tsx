@@ -6,6 +6,7 @@ import SmallMarketCard from "./Marketcard";
 import { formatVolume, type ApiMarket } from "@/src/services/marketGrouping";
 import { formatLiveCryptoTitle } from "@/lib/liveCryptoTitle";
 import type { Market } from "./Marketcard";
+import LiveSportsList from "./LiveSportsList";
 
 import { API_BASE } from "@/src/config/api";
 
@@ -162,6 +163,14 @@ export default function CategoryPage({ category: categoryProp }: { category?: st
       };
     });
   }, [items, sub, subSet, category]);
+
+  if (category === "Live Sports") {
+    return (
+      <div className="w-[60%] mx-auto px-4 py-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+        <LiveSportsList />
+      </div>
+    );
+  }
 
   return (
     <div className="w-[60%] mx-auto px-4 py-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
