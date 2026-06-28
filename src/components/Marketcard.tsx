@@ -146,13 +146,20 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
   const displayOptions = market.options.slice(0, 2);
   const optionsCount = market.optionsCount ?? market.options.length;
 
-  // Subscribe solo market cards to live /ws/prices via the card's conditionId.
-  // Grouped cards (event/game) don't have a single conditionId — no subscription.
-  const live = useLivePrices(isGrouped ? [] : [market.id]);
-  const livePrice = live[market.id];
+  // Per-option conditionId (multi-outcome) or card's own id (binary solo).
+  const optionCids = displayOptions.map((o) => o.conditionId).filter(Boolean) as string[];
+  const subIds = optionCids.length > 0 ? optionCids : (isGrouped ? [] : [market.id]);
+  const live = useLivePrices(subIds);
   const liveOptions = displayOptions.map((o, i) => {
-    if (!livePrice) return o;
-    const probability = i === 0 ? livePrice.yes : livePrice.no;
+    if (o.conditionId) {
+      const p = live[o.conditionId];
+      if (!p) return o;
+      const probability = o.priceSide === "no" ? p.no : p.yes;
+      return { ...o, probability, multiplier: undefined };
+    }
+    const lp = live[market.id];
+    if (!lp) return o;
+    const probability = i === 0 ? lp.yes : lp.no;
     return { ...o, probability, multiplier: undefined };
   });
 
