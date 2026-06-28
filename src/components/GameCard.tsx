@@ -1,7 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { formatVolume } from "@/src/utils/formatters";
+import { useLivePrices } from "@/src/services/livePrices";
 
 export interface MarketOption {
   label: string;
@@ -205,9 +207,28 @@ export default function GameCard({ game, showColumns }: { game: Game; showColumn
   const label = statusLabel(game);
   const firstSlug = game.markets.find((m) => m.slug)?.slug;
 
-  const mls = getMoneylines(game);
-  const sp = getSpread(game);
-  const tot = getTotal(game);
+  const rawMls = getMoneylines(game);
+  const rawSp = getSpread(game);
+  const rawTot = getTotal(game);
+
+  const displayedIds = useMemo(() => {
+    const ids: string[] = rawMls.map((m) => m.id);
+    if (rawSp) ids.push(rawSp.id);
+    if (rawTot) ids.push(rawTot.id);
+    return ids;
+  }, [rawMls, rawSp, rawTot]);
+
+  const live = useLivePrices(displayedIds);
+
+  const applyLive = (m: GameMarket): GameMarket => {
+    const lp = live[m.id];
+    if (!lp) return m;
+    return { ...m, options: m.options.map((o, i) => ({ ...o, probability: i === 0 ? lp.yes : lp.no })) };
+  };
+
+  const mls = rawMls.map(applyLive);
+  const sp = rawSp ? applyLive(rawSp) : null;
+  const tot = rawTot ? applyLive(rawTot) : null;
   const totalVol = game.markets.reduce((s, m) => s + (m.volume || 0), 0);
 
   const handleClick = () => {
