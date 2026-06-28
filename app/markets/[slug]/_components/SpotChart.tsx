@@ -21,6 +21,11 @@ export function SpotChart({ spotSymbol, spotData, spotLoading, isMobile, priceTo
               ${spotData[spotData.length - 1].value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           )}
+          {priceToBeat != null && (
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#f59e0b", marginLeft: 10 }}>
+              Target ${priceToBeat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          )}
         </div>
       </div>
       <div style={{ position: "relative" }}>
@@ -47,7 +52,7 @@ export function SpotChart({ spotSymbol, spotData, spotLoading, isMobile, priceTo
                 <YAxis domain={priceToBeat ? [(d: number) => Math.min(d, priceToBeat * 0.999), (d: number) => Math.max(d, priceToBeat * 1.001)] : ["auto", "auto"]} tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
                 <Tooltip content={(p) => <SpotTooltip {...p} />} />
                 {priceToBeat != null && (
-                  <ReferenceLine y={priceToBeat} stroke="#f59e0b" strokeDasharray="6 3" strokeWidth={1.5} label={{ value: `$${priceToBeat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, position: "right", fill: "#f59e0b", fontSize: 10, fontWeight: 700 }} />
+                  <ReferenceLine y={priceToBeat} stroke="#f59e0b" strokeDasharray="6 3" strokeWidth={1.5} label={{ value: `Target $${priceToBeat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, position: "insideTopRight", fill: "#f59e0b", fontSize: 9, fontWeight: 600 }} />
                 )}
                 <Area type="monotone" dataKey="value" stroke="#34d399" strokeWidth={2} fill="url(#spotGrad)" dot={false} activeDot={{ r: 3, strokeWidth: 0 }} />
               </AreaChart>
