@@ -1,11 +1,12 @@
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { SpotTooltip } from "@/app/markets/[slug]/_components/ChartTooltips";
 
-export function SpotChart({ spotSymbol, spotData, spotLoading, isMobile }: {
+export function SpotChart({ spotSymbol, spotData, spotLoading, isMobile, priceToBeat }: {
   spotSymbol: string;
   spotData: { date: string; value: number }[];
   spotLoading: boolean;
   isMobile: boolean;
+  priceToBeat?: number | null;
 }) {
   return (
     <div style={{ background: "#0f0f12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: isMobile ? "16px 14px 10px" : "20px 20px 12px" }}>
@@ -43,8 +44,11 @@ export function SpotChart({ spotSymbol, spotData, spotLoading, isMobile }: {
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="date" tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(spotData.length / (isMobile ? 3 : 5)))} />
-                <YAxis domain={["auto", "auto"]} tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
+                <YAxis domain={priceToBeat ? [(d: number) => Math.min(d, priceToBeat * 0.999), (d: number) => Math.max(d, priceToBeat * 1.001)] : ["auto", "auto"]} tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
                 <Tooltip content={(p) => <SpotTooltip {...p} />} />
+                {priceToBeat != null && (
+                  <ReferenceLine y={priceToBeat} stroke="#f59e0b" strokeDasharray="6 3" strokeWidth={1.5} label={{ value: `$${priceToBeat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, position: "right", fill: "#f59e0b", fontSize: 10, fontWeight: 700 }} />
+                )}
                 <Area type="monotone" dataKey="value" stroke="#34d399" strokeWidth={2} fill="url(#spotGrad)" dot={false} activeDot={{ r: 3, strokeWidth: 0 }} />
               </AreaChart>
             </ResponsiveContainer>

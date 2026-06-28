@@ -346,7 +346,7 @@ export default function MarketPage() {
 
           {/* Spot chart — primary chart for live-crypto markets */}
           {market.isLiveCrypto && spotSymbol && (
-            <SpotChart spotSymbol={spotSymbol} spotData={spotData} spotLoading={spotLoading} isMobile={isMobile} />
+            <SpotChart spotSymbol={spotSymbol} spotData={spotData} spotLoading={spotLoading} isMobile={isMobile} priceToBeat={market.line} />
           )}
 
           {/* Chart */}

@@ -17,5 +17,6 @@ export function mapMarket(api: ApiMarketDetail): MappedMarket {
     isLiveCrypto: api.isLiveCrypto ?? false,
     spot: api.spot ?? null,
     eventId: api.eventId,
+    line: api.line ?? null,
   };
 }

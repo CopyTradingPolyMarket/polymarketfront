@@ -17,6 +17,7 @@ export interface ApiMarketDetail {
   eventId: string;
   gameId?: number | null;
   sportsMarketType?: string | null;
+  line?: number | null;
 }
 
 export interface ApiChartPoint {
@@ -45,4 +46,5 @@ export interface MappedMarket extends Market {
   isLiveCrypto: boolean;
   spot: { symbol: string; value: number } | null;
   resolved?: boolean;
+  line?: number | null;
 }
