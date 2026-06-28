@@ -146,14 +146,13 @@ export default function SmallMarketCard({ market, onSelect }: Props) {
   const displayOptions = market.options.slice(0, 2);
   const optionsCount = market.optionsCount ?? market.options.length;
 
-  // Subscribe the visible options to live /ws/prices and merge the latest
-  // value in. When a live price exists we drop the static multiplier so it
-  // recomputes from the new probability.
-  const live = useLivePrices(isGrouped ? [] : displayOptions.map((o) => o.conditionId));
-  const liveOptions = displayOptions.map((o) => {
-    const p = o.conditionId ? live[o.conditionId] : undefined;
-    if (!p) return o;
-    const probability = o.priceSide === "no" ? p.no : p.yes;
+  // Subscribe solo market cards to live /ws/prices via the card's conditionId.
+  // Grouped cards (event/game) don't have a single conditionId — no subscription.
+  const live = useLivePrices(isGrouped ? [] : [market.id]);
+  const livePrice = live[market.id];
+  const liveOptions = displayOptions.map((o, i) => {
+    if (!livePrice) return o;
+    const probability = i === 0 ? livePrice.yes : livePrice.no;
     return { ...o, probability, multiplier: undefined };
   });
 
