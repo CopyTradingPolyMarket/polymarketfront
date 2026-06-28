@@ -50,17 +50,18 @@ function impliedMultiplier(probability: number): number {
 function OptionRow({ option, index, onClick }: { option: MarketOption; index: number; onClick: () => void }) {
   const color = option.color ?? PALETTE[index % PALETTE.length];
   const multiplier = option.multiplier ?? impliedMultiplier(option.probability);
-  const pct = Math.round(option.probability);
+  const pct1 = Math.round(option.probability * 10) / 10;
+  const pctDisplay = pct1.toFixed(1);
 
   // Detect live changes → subtle glow on the pill + a light sweep on the bar.
-  const prevPct = useRef(pct);
+  const prevPct = useRef(pct1);
   const sweepRef = useRef<HTMLDivElement>(null);
   const [dir, setDir] = useState<"up" | "down" | null>(null);
 
   useEffect(() => {
-    if (prevPct.current === pct) return;
-    setDir(pct > prevPct.current ? "up" : "down");
-    prevPct.current = pct;
+    if (prevPct.current === pct1) return;
+    setDir(pct1 > prevPct.current ? "up" : "down");
+    prevPct.current = pct1;
 
     // sweep a soft light across the bar
     const el = sweepRef.current;
@@ -77,7 +78,7 @@ function OptionRow({ option, index, onClick }: { option: MarketOption; index: nu
 
     const t = setTimeout(() => setDir(null), 600);
     return () => clearTimeout(t);
-  }, [pct]);
+  }, [pct1]);
 
   const flashGlow =
     dir === "up"
@@ -105,7 +106,7 @@ function OptionRow({ option, index, onClick }: { option: MarketOption; index: nu
           <p className="text-[12px] text-white leading-none truncate">{option.label}</p>
           <div
             className="relative h-[2.5px] rounded-full mt-1.5 overflow-hidden transition-[width] duration-500 ease-out"
-            style={{ width: `${Math.max(pct, 5)}%`, minWidth: 14 }}
+            style={{ width: `${Math.max(pct1, 5)}%`, minWidth: 14 }}
           >
             <div className="absolute inset-0 rounded-full" style={{ background: color }} />
             {/* light sweep overlay */}
@@ -127,10 +128,10 @@ function OptionRow({ option, index, onClick }: { option: MarketOption; index: nu
           {multiplier.toFixed(2)}x
         </span>
         <span
-          className="text-[11px] font-bold text-white border border-emerald-500/50 rounded-full px-3 py-1 tabular-nums text-center min-w-[56px] transition-[box-shadow,border-color] duration-500 ease-out"
+          className="text-[11px] font-bold text-white border border-emerald-500/50 rounded-full px-3 py-1 tabular-nums text-center min-w-[60px] transition-[box-shadow,border-color] duration-500 ease-out"
           style={{ borderColor: flashBorder, boxShadow: flashGlow }}
         >
-          {pct}%
+          {pctDisplay}%
         </span>
       </div>
     </div>
