@@ -95,18 +95,43 @@ function extractMlLabel(title: string): string {
   return title.split(":")[0].trim();
 }
 
+const SPREAD_PATTERN = /spread|handicap/i;
+const TOTAL_PATTERN = /total|over_under|over|under/i;
+
+function pickSpread(markets: GameMarket[], used: Set<string>): GameMarket | null {
+  const pool = markets.filter((m) => m.line !== null && !used.has(m.id));
+  const exact = pool.filter((m) => m.sportsMarketType === "spreads");
+  if (exact.length > 0) { exact.sort((a, b) => Math.abs(a.line!) - Math.abs(b.line!)); return exact[0]; }
+  const fuzzy = pool.filter((m) => m.sportsMarketType && SPREAD_PATTERN.test(m.sportsMarketType));
+  if (fuzzy.length > 0) { fuzzy.sort((a, b) => Math.abs(a.line!) - Math.abs(b.line!)); return fuzzy[0]; }
+  return null;
+}
+
+function pickTotal(markets: GameMarket[], used: Set<string>): GameMarket | null {
+  const pool = markets.filter((m) => m.line !== null && !used.has(m.id));
+  const exact = pool.filter((m) => m.sportsMarketType === "totals");
+  if (exact.length > 0) { exact.sort((a, b) => b.volume - a.volume); return exact[0]; }
+  const fuzzy = pool.filter((m) => m.sportsMarketType && TOTAL_PATTERN.test(m.sportsMarketType));
+  if (fuzzy.length > 0) { fuzzy.sort((a, b) => b.volume - a.volume); return fuzzy[0]; }
+  return null;
+}
+
+export function allocateColumns(game: Game): { moneyline: GameMarket[]; spread: GameMarket | null; total: GameMarket | null } {
+  const used = new Set<string>();
+  const moneyline = getMoneylines(game);
+  for (const m of moneyline) used.add(m.id);
+  const spread = pickSpread(game.markets, used);
+  if (spread) used.add(spread.id);
+  const total = pickTotal(game.markets, used);
+  return { moneyline, spread, total };
+}
+
 export function getSpread(game: Game): GameMarket | null {
-  const spreads = game.markets.filter((m) => m.sportsMarketType === "spreads" && m.line !== null);
-  if (spreads.length === 0) return null;
-  spreads.sort((a, b) => Math.abs(a.line!) - Math.abs(b.line!));
-  return spreads[0];
+  return pickSpread(game.markets, new Set());
 }
 
 export function getTotal(game: Game): GameMarket | null {
-  const totals = game.markets.filter((m) => m.sportsMarketType === "totals" && m.line !== null);
-  if (totals.length === 0) return null;
-  totals.sort((a, b) => b.volume - a.volume);
-  return totals[0];
+  return pickTotal(game.markets, new Set());
 }
 
 function PriceBtn({ label, cents, lead }: { label: string; cents: number; lead: boolean }) {
@@ -207,9 +232,7 @@ export default function GameCard({ game, showColumns }: { game: Game; showColumn
   const label = statusLabel(game);
   const firstSlug = game.markets.find((m) => m.slug)?.slug;
 
-  const rawMls = getMoneylines(game);
-  const rawSp = getSpread(game);
-  const rawTot = getTotal(game);
+  const { moneyline: rawMls, spread: rawSp, total: rawTot } = useMemo(() => allocateColumns(game), [game]);
 
   const displayedIds = useMemo(() => {
     const ids: string[] = rawMls.map((m) => m.id);
