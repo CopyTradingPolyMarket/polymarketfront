@@ -105,19 +105,6 @@ const TYPE_LABEL: Record<string,string> = {
 
 function typeLabel(t: string) { return TYPE_LABEL[t] ?? t.replace(/_/g," ").replace(/\b\w/g, c => c.toUpperCase()); }
 
-const GAME_LINES = new Set(["moneyline","spreads","totals","both_teams_to_score","both_teams_to_score_first_half","both_teams_to_score_second_half"]);
-const EXACT_SCORE = new Set(["soccer_exact_score"]);
-const HALVES = new Set(["soccer_halftime_result","soccer_second_half_result","first_half_totals","second_half_totals","soccer_first_half_team_totals","soccer_second_half_team_totals"]);
-const CORNERS = new Set(["total_corners","soccer_team_total_corners","soccer_first_half_total_corners","soccer_second_half_total_corners","soccer_first_corner","soccer_game_corners_odd_even"]);
-
-interface TabDef { label: string; filter: Set<string> }
-const TABS: TabDef[] = [
-  { label: "Game Lines", filter: GAME_LINES },
-  { label: "Exact Score", filter: EXACT_SCORE },
-  { label: "Halves", filter: HALVES },
-  { label: "Corners", filter: CORNERS },
-];
-
 interface MktGroup { type: string; label: string; markets: Mkt[] }
 
 function groupMarkets(markets: Mkt[]): MktGroup[] {
@@ -297,7 +284,6 @@ export default function SportsGamePage() {
 
   const [selectedMarket, setSelectedMarket] = useState<Mkt | null>(null);
   const [selectedSide, setSelectedSide] = useState<"yes" | "no">("yes");
-  const [activeTab, setActiveTab] = useState(0);
 
   // Fetch game
   useEffect(() => {
@@ -343,31 +329,6 @@ export default function SportsGamePage() {
 
   // Group markets
   const allGroups = useMemo(() => groupMarkets(game?.markets ?? []), [game]);
-
-  // Available tabs (only show tabs that have markets)
-  const availTabs = useMemo(() => {
-    const types = new Set((game?.markets ?? []).map(m => m.sportsMarketType ?? "other"));
-    const tabs: TabDef[] = [];
-    for (const t of TABS) {
-      if ([...t.filter].some(f => types.has(f))) tabs.push(t);
-    }
-    // "All" tab for anything not in the defined tabs
-    const covered = new Set(TABS.flatMap(t => [...t.filter]));
-    const uncovered = [...types].filter(t => !covered.has(t));
-    if (uncovered.length > 0 || tabs.length === 0) tabs.push({ label: "All Markets", filter: new Set(["__all__"]) });
-    return tabs;
-  }, [game]);
-
-  const visibleGroups = useMemo(() => {
-    if (availTabs.length === 0) return allGroups;
-    const tab = availTabs[activeTab] ?? availTabs[0];
-    if (!tab) return allGroups;
-    if (tab.filter.has("__all__")) {
-      const covered = new Set(TABS.flatMap(t => [...t.filter]));
-      return allGroups.filter(g => !covered.has(g.type));
-    }
-    return allGroups.filter(g => tab.filter.has(g.type));
-  }, [allGroups, availTabs, activeTab]);
 
   const handleSelect = (m: Mkt, side: "yes" | "no") => {
     setSelectedMarket(m); setSelectedSide(side);
@@ -460,17 +421,8 @@ export default function SportsGamePage() {
               </div>
             )}
 
-            {/* Category tabs */}
-            {availTabs.length > 1 && (
-              <div className="flex gap-1 overflow-x-auto scrollbar-none">
-                {availTabs.map((tab, i) => (
-                  <button key={tab.label} onClick={() => setActiveTab(i)} className={`shrink-0 px-4 py-2 rounded-lg text-[12px] font-semibold transition-colors ${activeTab===i ? "bg-white/10 text-white" : "bg-white/[0.03] text-gray-500 hover:text-gray-300"}`}>{tab.label}</button>
-                ))}
-              </div>
-            )}
-
             {/* Market sections */}
-            {visibleGroups.map(group => (
+            {allGroups.map(group => (
               <div key={group.type} className="rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-[13px] font-semibold text-gray-300">{group.label}</h3>
