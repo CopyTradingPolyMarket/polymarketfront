@@ -90,11 +90,11 @@ function PriceBtn({ label, cents, lead, selected, onClick }: { label: string; ce
   return (
     <button onClick={onClick} className={`flex-1 rounded-lg px-2 py-2 text-center transition-all cursor-pointer ${
       selected ? "bg-blue-500/20 text-blue-400 border-2 border-blue-500/40" :
-      lead ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25" :
+      lead ? "bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25" :
       "bg-white/[0.04] text-gray-400 border border-white/[0.06] hover:bg-white/[0.08]"
     }`}>
       <div className="text-[11px] font-semibold truncate">{label}</div>
-      <div className={`text-[13px] font-bold tabular-nums ${selected ? "text-blue-300" : lead ? "text-emerald-300" : "text-gray-300"}`}>{cents}¢</div>
+      <div className={`text-[13px] font-bold tabular-nums ${selected ? "text-blue-300" : lead ? "text-blue-300" : "text-gray-300"}`}>{cents}¢</div>
     </button>
   );
 }

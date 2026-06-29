@@ -11,7 +11,7 @@ export const AVATAR_GRADIENTS = [
   "linear-gradient(135deg,#6366f1,#8b5cf6)",
   "linear-gradient(135deg,#0ea5e9,#06b6d4)",
   "linear-gradient(135deg,#f59e0b,#ef4444)",
-  "linear-gradient(135deg,#10b981,#059669)",
+  "linear-gradient(135deg, #3b82f6, #2563eb))",
   "linear-gradient(135deg,#ec4899,#f43f5e)",
   "linear-gradient(135deg,#8b5cf6,#d946ef)",
   "linear-gradient(135deg,#14b8a6,#0ea5e9)",

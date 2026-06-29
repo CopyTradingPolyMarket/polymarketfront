@@ -17,7 +17,7 @@ type Accent = "blue" | "red" | "green" | "purple" | "orange";
 const ACCENT: Record<Accent, { glow: string; border: string; chevron: string; iconBg: string }> = {
   blue:   { glow: "rgba(56,189,248,0.16)",  border: "rgba(56,189,248,0.35)",  chevron: "#38bdf8", iconBg: "rgba(56,189,248,0.12)"  },
   red:    { glow: "rgba(248,113,113,0.16)", border: "rgba(248,113,113,0.35)", chevron: "#f87171", iconBg: "rgba(248,113,113,0.12)" },
-  green:  { glow: "rgba(52,211,153,0.16)",  border: "rgba(52,211,153,0.35)",  chevron: "#34d399", iconBg: "rgba(52,211,153,0.12)"  },
+  green:  { glow: "rgba(96,165,250,0.16)",  border: "rgba(96,165,250,0.35)",  chevron: "#60a5fa", iconBg: "rgba(96,165,250,0.12)"  },
   purple: { glow: "rgba(167,139,250,0.16)", border: "rgba(167,139,250,0.35)", chevron: "#a78bfa", iconBg: "rgba(167,139,250,0.12)" },
   orange: { glow: "rgba(251,146,60,0.16)",  border: "rgba(251,146,60,0.35)",  chevron: "#fb923c", iconBg: "rgba(251,146,60,0.12)"  },
 };
@@ -83,9 +83,9 @@ function Coil() {
     <svg viewBox="0 0 320 150" className="absolute inset-x-0 top-0 w-full" style={{ height: 150 }} aria-hidden>
       <defs>
         <linearGradient id="coilGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="#34d399" stopOpacity="0.05" />
-          <stop offset="50%"  stopColor="#34d399" stopOpacity="0.85" />
-          <stop offset="100%" stopColor="#34d399" stopOpacity="0.05" />
+          <stop offset="0%"   stopColor="#60a5fa" stopOpacity="0.05" />
+          <stop offset="50%"  stopColor="#60a5fa" stopOpacity="0.85" />
+          <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.05" />
         </linearGradient>
       </defs>
       {rings.map((_, i) => {
@@ -133,9 +133,9 @@ function PromoCard({ onClose }: { onClose: () => void }) {
     <div
       className="relative overflow-hidden rounded-2xl border px-5 pb-5 pt-[120px]"
       style={{
-        borderColor: "rgba(52,211,153,0.25)",
+        borderColor: "rgba(96,165,250,0.25)",
         background:
-          "radial-gradient(120% 80% at 50% -10%, rgba(52,211,153,0.18) 0%, rgba(10,12,14,0) 55%), linear-gradient(180deg, #0b1310 0%, #0a0b0d 100%)",
+          "radial-gradient(120% 80% at 50% -10%, rgba(96,165,250,0.18) 0%, rgba(10,12,14,0) 55%), linear-gradient(180deg, #0b1310 0%, #0a0b0d 100%)",
       }}
     >
       <Coil />
@@ -152,7 +152,7 @@ function PromoCard({ onClose }: { onClose: () => void }) {
         <button
           onClick={() => router.push(PROMO.href)}
           className="w-full py-3 rounded-full text-[14px] font-bold text-black transition active:scale-[0.99]"
-          style={{ background: "#34d399" }}
+          style={{ background: "#60a5fa" }}
         >
           {PROMO.ctaLabel}
         </button>

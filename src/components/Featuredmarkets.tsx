@@ -78,7 +78,7 @@ const MAX_CHART_LINES = 4;
 // Distinct line colors. Beyond the fixed list we fall back to evenly spaced
 // hues (golden-angle) so any number of options still gets a unique color.
 const LINE_PALETTE = [
-  "#34d399", "#38bdf8", "#fb923c", "#a78bfa", "#f87171", "#fbbf24",
+  "#60a5fa", "#38bdf8", "#fb923c", "#a78bfa", "#f87171", "#fbbf24",
   "#22d3ee", "#f472b6", "#a3e635", "#818cf8", "#fb7185", "#2dd4bf",
 ];
 
@@ -120,7 +120,7 @@ interface ApiComment {
 
 const COLOR_MAP: Record<ColorKey, { stroke: string; fill: string; text: string; pill: string }> = {
   blue:   { stroke: "#38bdf8", fill: "rgba(56,189,248,0.12)",  text: "#38bdf8", pill: "rgba(56,189,248,0.1)"  },
-  green:  { stroke: "#34d399", fill: "rgba(52,211,153,0.12)",  text: "#34d399", pill: "rgba(52,211,153,0.1)"  },
+  green:  { stroke: "#60a5fa", fill: "rgba(96,165,250,0.12)",  text: "#60a5fa", pill: "rgba(96,165,250,0.1)"  },
   red:    { stroke: "#f87171", fill: "rgba(248,113,113,0.12)", text: "#f87171", pill: "rgba(248,113,113,0.1)" },
   orange: { stroke: "#fb923c", fill: "rgba(251,146,60,0.12)",  text: "#fb923c", pill: "rgba(251,146,60,0.1)"  },
   purple: { stroke: "#a78bfa", fill: "rgba(167,139,250,0.12)", text: "#a78bfa", pill: "rgba(167,139,250,0.1)" },
@@ -131,8 +131,8 @@ const CATEGORY_DOT: Record<string, string> = {
   Elections: "#a78bfa",
   Sports:    "#38bdf8",
   Tech:      "#38bdf8",
-  Crypto:    "#34d399",
-  AI:        "#34d399",
+  Crypto:    "#60a5fa",
+  AI:        "#60a5fa",
   Culture:   "#fb923c",
 };
 
@@ -583,7 +583,7 @@ function CommentsPreview({
       ) : (
         <p className="text-[13px] text-gray-600 leading-relaxed">
           <span className="font-bold text-gray-500">Comments</span> · No comments yet.{" "}
-          <span className="text-emerald-400 group-hover:underline">Be the first →</span>
+          <span className="text-blue-400 group-hover:underline">Be the first →</span>
         </p>
       )}
     </button>
@@ -694,7 +694,7 @@ function MarketCard({ market, active }: { market: FeaturedMarket; active: boolea
                     {opt.multiplier.toFixed(2)}x
                   </span>
 
-                  <span className="text-[14px] font-bold text-white border border-emerald-500/40 rounded-full px-3 py-1.5 tabular-nums text-center w-[72px]">
+                  <span className="text-[14px] font-bold text-white border border-blue-500/40 rounded-full px-3 py-1.5 tabular-nums text-center w-[72px]">
                     {opt.percent}%
                   </span>
                 </button>

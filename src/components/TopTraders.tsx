@@ -131,7 +131,7 @@ function TraderRow({ trader, idx }: { trader: Trader; idx: number }) {
       <div className="text-right shrink-0">
         <div
           className="flex items-center justify-end gap-0.5 text-[12px] font-bold tabular-nums"
-          style={{ color: trader.isUp ? "#34d399" : "#f87171" }}
+          style={{ color: trader.isUp ? "#60a5fa" : "#f87171" }}
         >
           {trader.isUp ? <TrendUp /> : <TrendDown />}
           {trader.pnl}

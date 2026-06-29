@@ -100,7 +100,7 @@ export default function CategoryTabs() {
             <li key={cat}>
               <button onClick={() => selectCategory(cat)} className={tabCls(isCategoryActive(cat))}>
                 {cat === "Live Crypto" && (
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
                 )}
                 {cat === "Live Sports" && (
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />

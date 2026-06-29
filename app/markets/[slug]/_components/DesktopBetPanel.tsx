@@ -21,8 +21,8 @@ export function DesktopBetPanel({ market, activeOption, setActiveOption, betType
               <button key={m} onClick={() => setPanelMode(m)} style={{
                 padding: "9px 0", borderRadius: 9, fontSize: 13, fontWeight: 700,
                 cursor: "pointer", border: "none",
-                background: panelMode === m ? (m === "buy" ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)") : "transparent",
-                color: panelMode === m ? (m === "buy" ? "#34d399" : "#f87171") : "#6b7280",
+                background: panelMode === m ? (m === "buy" ? "rgba(59,130,246,0.15)" : "rgba(239,68,68,0.15)") : "transparent",
+                color: panelMode === m ? (m === "buy" ? "#60a5fa" : "#f87171") : "#6b7280",
               }}>{m === "buy" ? "Buy" : "Sell"}</button>
             ))}
           </div>
@@ -46,7 +46,7 @@ export function DesktopBetPanel({ market, activeOption, setActiveOption, betType
                       <div style={{ width: 16, height: 16, borderRadius: "50%", border: active ? "5px solid #fff" : "2px solid #374151", flexShrink: 0 }} />
                       <span style={{ fontSize: 14, fontWeight: 600, color: active ? "#fff" : "#9ca3af" }}>{opt.label}</span>
                     </div>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: opt.probability >= 50 ? "#34d399" : "#f87171" }}>{opt.probability}%</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: opt.probability >= 50 ? "#60a5fa" : "#f87171" }}>{opt.probability}%</span>
                   </button>
                 );
               })}
@@ -62,8 +62,8 @@ export function DesktopBetPanel({ market, activeOption, setActiveOption, betType
                 <button key={t} onClick={() => setBetType(t)} style={{
                   padding: "10px 0", borderRadius: 9, fontSize: 13, fontWeight: 700,
                   cursor: "pointer", border: "none",
-                  background: betType === t ? (t === "yes" ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)") : "transparent",
-                  color: betType === t ? (t === "yes" ? "#34d399" : "#f87171") : "#6b7280",
+                  background: betType === t ? (t === "yes" ? "rgba(59,130,246,0.15)" : "rgba(239,68,68,0.15)") : "transparent",
+                  color: betType === t ? (t === "yes" ? "#60a5fa" : "#f87171") : "#6b7280",
                 }}>{t === "yes" ? "Buy Yes" : "Buy No"}</button>
               ))}
             </div>
@@ -102,14 +102,14 @@ export function DesktopBetPanel({ market, activeOption, setActiveOption, betType
               <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "8px 0" }} />
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 12, color: "#6b7280" }}>Potential profit</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>+${potentialProfit}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#60a5fa" }}>+${potentialProfit}</span>
               </div>
             </div>
           )}
 
           <div style={{ padding: 16 }}>
             {tradeStatus === "success" ? (
-              <div style={{ textAlign: "center", padding: "14px 0", borderRadius: 14, background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399", fontSize: 13, fontWeight: 600 }}>
+              <div style={{ textAlign: "center", padding: "14px 0", borderRadius: 14, background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", color: "#60a5fa", fontSize: 13, fontWeight: 600 }}>
                 ✓ {tradeMessage}
               </div>
             ) : (
@@ -117,7 +117,7 @@ export function DesktopBetPanel({ market, activeOption, setActiveOption, betType
                 width: "100%", padding: "14px 0", borderRadius: 14, fontSize: 14, fontWeight: 700,
                 cursor: tradeStatus === "loading" ? "not-allowed" : "pointer", border: "none",
                 opacity: tradeStatus === "loading" ? 0.65 : 1,
-                background: authenticated ? (isYes ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)") : "rgba(255,255,255,0.09)",
+                background: authenticated ? (isYes ? "linear-gradient(135deg, #3b82f6, #2563eb))" : "linear-gradient(135deg,#ef4444,#dc2626)") : "rgba(255,255,255,0.09)",
                 color: "#fff",
                 boxShadow: tradeStatus === "loading" || !authenticated ? "none" : isYes ? "0 4px 24px rgba(16,185,129,0.28)" : "0 4px 24px rgba(239,68,68,0.28)",
               }}>
@@ -150,8 +150,8 @@ export function DesktopBetPanel({ market, activeOption, setActiveOption, betType
                     padding: "10px 0", borderRadius: 9, fontSize: 13, fontWeight: 700,
                     cursor: holds ? "pointer" : "default", border: "none",
                     opacity: holds ? 1 : 0.3,
-                    background: sellSide === s && holds ? (s === "YES" ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)") : "transparent",
-                    color: sellSide === s && holds ? (s === "YES" ? "#34d399" : "#f87171") : "#6b7280",
+                    background: sellSide === s && holds ? (s === "YES" ? "rgba(59,130,246,0.15)" : "rgba(239,68,68,0.15)") : "transparent",
+                    color: sellSide === s && holds ? (s === "YES" ? "#60a5fa" : "#f87171") : "#6b7280",
                   }}>{s}</button>
                 ))}
               </div>
@@ -169,7 +169,7 @@ export function DesktopBetPanel({ market, activeOption, setActiveOption, betType
                     onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
                   />
                   <button onClick={() => { setSellDollars(maxDollarsDisplay); setSellIsMax(true); }}
-                    style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 700, color: "#34d399", background: "rgba(52,211,153,0.12)", border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer" }}>
+                    style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 700, color: "#60a5fa", background: "rgba(96,165,250,0.12)", border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer" }}>
                     Max
                   </button>
                 </div>
@@ -178,7 +178,7 @@ export function DesktopBetPanel({ market, activeOption, setActiveOption, betType
                 <p style={{ fontSize: 10, color: "#4b5563", marginBottom: 16 }}>Approximate — final amount depends on price at execution</p>
 
                 {sellStatus === "success" ? (
-                  <div style={{ textAlign: "center", padding: "14px 0", borderRadius: 14, background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399", fontSize: 13, fontWeight: 600 }}>
+                  <div style={{ textAlign: "center", padding: "14px 0", borderRadius: 14, background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", color: "#60a5fa", fontSize: 13, fontWeight: 600 }}>
                     ✓ {sellMessage}
                   </div>
                 ) : (
@@ -186,7 +186,7 @@ export function DesktopBetPanel({ market, activeOption, setActiveOption, betType
                     width: "100%", padding: "14px 0", borderRadius: 14, fontSize: 14, fontWeight: 700,
                     cursor: sellStatus === "loading" ? "not-allowed" : "pointer", border: "none",
                     opacity: sellStatus === "loading" ? 0.65 : 1,
-                    background: authenticated ? (sellSide === "YES" ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#ef4444,#dc2626)") : "rgba(255,255,255,0.09)",
+                    background: authenticated ? (sellSide === "YES" ? "linear-gradient(135deg, #3b82f6, #2563eb))" : "linear-gradient(135deg,#ef4444,#dc2626)") : "rgba(255,255,255,0.09)",
                     color: "#fff",
                     boxShadow: sellStatus === "loading" || !authenticated ? "none" : sellSide === "YES" ? "0 4px 24px rgba(16,185,129,0.28)" : "0 4px 24px rgba(239,68,68,0.28)",
                   }}>
@@ -212,7 +212,7 @@ export function DesktopBetPanel({ market, activeOption, setActiveOption, betType
               {!m.image && <div style={{ width: 30, height: 30, borderRadius: 8, background: "#1a1a1e", flexShrink: 0 }} />}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 12, color: "#d1d5db", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>{m.title}</p>
-                <p style={{ fontSize: 11, color: "#34d399", fontWeight: 600, margin: "2px 0 0" }}>{m.options[0]?.probability ?? 0}% Yes</p>
+                <p style={{ fontSize: 11, color: "#60a5fa", fontWeight: 600, margin: "2px 0 0" }}>{m.options[0]?.probability ?? 0}% Yes</p>
               </div>
             </button>
           ))}

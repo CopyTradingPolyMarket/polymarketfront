@@ -54,11 +54,11 @@ export default function CandlestickChart({ points, height, isMobile }: Props) {
     chartRef.current = chart;
 
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#34d399",
+      upColor: "#60a5fa",
       downColor: "#f87171",
-      borderUpColor: "#34d399",
+      borderUpColor: "#60a5fa",
       borderDownColor: "#f87171",
-      wickUpColor: "#34d399",
+      wickUpColor: "#60a5fa",
       wickDownColor: "#f87171",
     });
 

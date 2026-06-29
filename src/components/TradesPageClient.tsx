@@ -18,7 +18,7 @@ const LIVE_MARKETS = [
 
 const PLATFORM_STATS = [
   { label: "Active Traders",  value: "24,180",  sub: "+12% this week",  color: "#60a5fa" },
-  { label: "Total Volume",    value: "$142M",   sub: "all time",        color: "#34d399" },
+  { label: "Total Volume",    value: "$142M",   sub: "all time",        color: "#60a5fa" },
   { label: "Markets Open",    value: "1,847",   sub: "across 6 cats",   color: "#facc15" },
   { label: "Avg Win Rate",    value: "61%",     sub: "top 100 traders", color: "#a78bfa" },
 ];
@@ -26,7 +26,7 @@ const PLATFORM_STATS = [
 const categoryColors: Record<string, { bg: string; text: string }> = {
   Sports:  { bg: "rgba(59,130,246,0.12)",  text: "#60a5fa" },
   Finance: { bg: "rgba(234,179,8,0.12)",   text: "#facc15" },
-  Crypto:  { bg: "rgba(16,185,129,0.12)",  text: "#34d399" },
+  Crypto:  { bg: "rgba(16,185,129,0.12)",  text: "#60a5fa" },
   Politics:{ bg: "rgba(139,92,246,0.12)",  text: "#a78bfa" },
   Tech:    { bg: "rgba(251,146,60,0.12)",  text: "#fb923c" },
   Culture: { bg: "rgba(236,72,153,0.12)",  text: "#f472b6" },
@@ -90,7 +90,7 @@ function TraderGridCard({ trader, rank }: { trader: TraderProfile; rank: number 
       style={{ background: "#0e0f11" }}
     >
       {/* Top accent bar */}
-      <div className="h-0.5 w-full" style={{ background: isUp ? "linear-gradient(90deg,#6366f1,#34d399)" : "linear-gradient(90deg,#f87171,#f43f5e)" }} />
+      <div className="h-0.5 w-full" style={{ background: isUp ? "linear-gradient(90deg,#6366f1,#60a5fa)" : "linear-gradient(90deg,#f87171,#f43f5e)" }} />
 
       <div className="px-4 py-4">
         {/* Header row */}
@@ -137,7 +137,7 @@ function TraderGridCard({ trader, rank }: { trader: TraderProfile; rank: number 
         <div className="mb-3">
           <div
             className="text-[20px] font-black tabular-nums leading-none flex items-center gap-1"
-            style={{ color: isUp ? "#34d399" : "#f87171" }}
+            style={{ color: isUp ? "#60a5fa" : "#f87171" }}
           >
             {isUp ? <TrendUp /> : <TrendDown />}
             {trader.totalPnl}
@@ -222,7 +222,7 @@ function TraderListRow({ trader, rank }: { trader: TraderProfile; rank: number }
       <div className="flex-1 text-right">
         <div
           className="text-[14px] font-black tabular-nums flex items-center justify-end gap-0.5"
-          style={{ color: isUp ? "#34d399" : "#f87171" }}
+          style={{ color: isUp ? "#60a5fa" : "#f87171" }}
         >
           {isUp ? <TrendUp /> : <TrendDown />}
           {trader.totalPnl}
@@ -231,7 +231,7 @@ function TraderListRow({ trader, rank }: { trader: TraderProfile; rank: number }
 
       {/* ROI */}
       <div className="w-16 text-right shrink-0">
-        <div className="text-[11px] font-semibold tabular-nums" style={{ color: isUp ? "#34d399" : "#f87171" }}>
+        <div className="text-[11px] font-semibold tabular-nums" style={{ color: isUp ? "#60a5fa" : "#f87171" }}>
           {isUp ? "+" : ""}{trader.totalPnlPercent}%
         </div>
         <div className="text-[9px] text-gray-600">ROI</div>
@@ -381,7 +381,7 @@ function SpotlightCard({ topTrader }: { topTrader: TraderProfile }) {
       </div>
       <div className="mt-3 pt-3 border-t border-white/[0.05] grid grid-cols-3 gap-2 text-center">
         <div>
-          <div className="text-[13px] font-black" style={{ color: "#34d399" }}>{topTrader.totalPnl}</div>
+          <div className="text-[13px] font-black" style={{ color: "#60a5fa" }}>{topTrader.totalPnl}</div>
           <div className="text-[9px] text-gray-600 mt-0.5">Total PnL</div>
         </div>
         <div>

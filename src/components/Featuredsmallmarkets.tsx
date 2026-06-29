@@ -228,7 +228,7 @@ function CategorySection({
         className="flex items-center gap-1.5 mb-4 group"
       >
         <h2 className="text-[19px] font-bold text-white cursor-pointer">{data.category}</h2>
-        <span className="text-emerald-400 text-[30px] -translate-y-0.5 group-hover:translate-x-0.5 transition">›</span>
+        <span className="text-blue-400 text-[30px] -translate-y-0.5 group-hover:translate-x-0.5 transition">›</span>
       </button>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {data.markets.map((market) => (

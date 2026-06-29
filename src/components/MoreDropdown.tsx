@@ -170,7 +170,7 @@ export default function MoreDropdown() {
                       onClick={() => setOpen(false)}
                       className="group flex items-start gap-2.5 px-2 py-2 rounded-xl hover:bg-white/[0.05] transition-all duration-100"
                     >
-                      <span className="mt-0.5 text-gray-500 group-hover:text-[#34d399] transition-colors shrink-0">
+                      <span className="mt-0.5 text-gray-500 group-hover:text-[#60a5fa] transition-colors shrink-0">
                         <Icon />
                       </span>
                       <div>
@@ -194,7 +194,7 @@ export default function MoreDropdown() {
           <Link
             href="/help"
             onClick={() => setOpen(false)}
-            className="text-[11px] text-[#34d399] hover:text-[#3ee6aa] transition-colors font-medium"
+            className="text-[11px] text-[#60a5fa] hover:text-[#2563eb] transition-colors font-medium"
           >
             Visit Help Center →
           </Link>

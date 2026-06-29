@@ -129,7 +129,7 @@ function groupMarkets(markets: Mkt[]): MktGroup[] {
 
 type Range = "1H"|"6H"|"1D"|"1W"|"1M"|"ALL";
 const RANGE_API: Record<Range,string> = { "1H":"1h","6H":"6h","1D":"1d","1W":"1w","1M":"1m","ALL":"all" };
-const COLORS = ["#3b82f6","#f59e0b","#6b7280"];
+const COLORS = ["#2563eb","#f59e0b","#6b7280"];
 
 interface ChartPt { date: string; [key: string]: number | string }
 
@@ -141,11 +141,11 @@ function PriceBtn({ label, cents, lead, selected, onClick }: { label: string; ce
   return (
     <button onClick={onClick} className={`flex-1 rounded-lg px-2 py-2 text-center transition-all cursor-pointer ${
       selected ? "bg-blue-500/20 text-blue-400 border-2 border-blue-500/40" :
-      lead ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25" :
+      lead ? "bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25" :
       "bg-white/[0.04] text-gray-400 border border-white/[0.06] hover:bg-white/[0.08]"
     }`}>
       <div className="text-[11px] font-semibold truncate">{label}</div>
-      <div className={`text-[13px] font-bold tabular-nums ${selected ? "text-blue-300" : lead ? "text-emerald-300" : "text-gray-300"}`}>{cents.toFixed(1)}¢</div>
+      <div className={`text-[13px] font-bold tabular-nums ${selected ? "text-blue-300" : lead ? "text-blue-300" : "text-gray-300"}`}>{cents.toFixed(1)}¢</div>
     </button>
   );
 }
@@ -253,7 +253,7 @@ function BetPanel({ market, side }: { market: Mkt | null; side: "yes"|"no" }) {
       <p className="text-[11px] text-gray-500 uppercase tracking-wider font-semibold mb-3">Trade</p>
       <p className="text-[13px] text-gray-200 font-medium mb-1 truncate">{market.title}</p>
       <div className="flex gap-2 mb-4">
-        <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${side==="yes" ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
+        <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${side==="yes" ? "bg-blue-500/20 text-blue-400" : "bg-red-500/20 text-red-400"}`}>
           {side === "yes" ? opt?.label ?? "Yes" : opt?.label ?? "No"} {Math.round(prob)}¢
         </span>
       </div>

@@ -146,7 +146,7 @@ function Composer({
         style={{ background: "#ffffff0a" }}
       >
         <span className="text-[12px] text-gray-500">Sign in to join the discussion</span>
-        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg" style={{ background: "rgba(52,211,153,0.1)", color: "#34d399" }}>
+        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg" style={{ background: "rgba(96,165,250,0.1)", color: "#60a5fa" }}>
           Log in
         </span>
       </div>
@@ -193,7 +193,7 @@ function Composer({
                 onClick={handleSubmit}
                 disabled={!value.trim() || posting}
                 className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                style={{ background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)" }}
+                style={{ background: "rgba(96,165,250,0.15)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.25)" }}
               >
                 {posting ? "Posting…" : (
                   <>

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 
-const G = "#34d399";
+const G = "#60a5fa";
 
 // ─── Icons (inline SVG, green wireframe style) ────────────────────────────────
 
@@ -98,8 +98,8 @@ function Card({ card }: { card: InfoCard }) {
       onClick={() => router.push(card.href)}
       className="group flex items-center gap-4 w-full text-left rounded-2xl border px-5 py-5 transition hover:brightness-110 cursor-pointer"
       style={{
-        borderColor: "rgba(52,211,153,0.14)",
-        background: "radial-gradient(130% 130% at 0% 0%, rgba(52,211,153,0.07) 0%, rgba(10,12,13,0) 55%), #0c100e",
+        borderColor: "rgba(96,165,250,0.14)",
+        background: "radial-gradient(130% 130% at 0% 0%, rgba(96,165,250,0.07) 0%, rgba(10,12,13,0) 55%), #0c100e",
       }}
     >
       <span className="shrink-0 w-12 flex items-center justify-center">{card.icon}</span>

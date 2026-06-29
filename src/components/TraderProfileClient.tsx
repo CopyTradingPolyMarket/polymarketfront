@@ -18,7 +18,7 @@ const TIER_CONFIG = {
 const categoryColors: Record<string, { bg: string; text: string }> = {
   Sports:   { bg: "rgba(59,130,246,0.12)",  text: "#60a5fa" },
   Finance:  { bg: "rgba(234,179,8,0.12)",   text: "#facc15" },
-  Crypto:   { bg: "rgba(16,185,129,0.12)",  text: "#34d399" },
+  Crypto:   { bg: "rgba(16,185,129,0.12)",  text: "#60a5fa" },
   Politics: { bg: "rgba(139,92,246,0.12)",  text: "#a78bfa" },
   Tech:     { bg: "rgba(251,146,60,0.12)",  text: "#fb923c" },
 };
@@ -49,7 +49,7 @@ function CustomTooltip({ active, payload, label }: any) {
       style={{ background: "#1a1b1e" }}
     >
       <div className="text-gray-400 mb-1">{label}</div>
-      <div className="font-bold" style={{ color: isUp ? "#34d399" : "#f87171" }}>
+      <div className="font-bold" style={{ color: isUp ? "#60a5fa" : "#f87171" }}>
         ${Math.abs(payload[0].value).toLocaleString()} cumulative
       </div>
       {payload[1] && (
@@ -189,7 +189,7 @@ export default function TraderProfileClient({ profile, trades, earnings }: Props
 
         {/* ── Stats grid ── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-6">
-          <StatCard label="Total PnL" value={profile.totalPnl} sub={`+${profile.totalPnlPercent}% ROI`} accent="#34d399" />
+          <StatCard label="Total PnL" value={profile.totalPnl} sub={`+${profile.totalPnlPercent}% ROI`} accent="#60a5fa" />
           <StatCard label="Win Rate"  value={`${profile.winRate}%`} sub={`${profile.totalTrades} trades`} accent="#60a5fa" />
           <StatCard label="Avg Return" value={`+${profile.avgReturn}%`} sub="per trade" />
           <StatCard label="Best Trade" value={`+${profile.bestTradePercent}%`} sub={profile.bestTrade} accent="#facc15" />
@@ -290,7 +290,7 @@ export default function TraderProfileClient({ profile, trades, earnings }: Props
             {filteredTrades.map((trade) => {
               const cat = categoryColors[trade.category] ?? { bg: "rgba(255,255,255,0.06)", text: "#9ca3af" };
               const isUp = trade.pnlPercent >= 0;
-              const statusColor = trade.status === "open" ? "#60a5fa" : trade.status === "won" ? "#34d399" : "#f87171";
+              const statusColor = trade.status === "open" ? "#60a5fa" : trade.status === "won" ? "#60a5fa" : "#f87171";
               const statusBg   = trade.status === "open" ? "rgba(59,130,246,0.12)" : trade.status === "won" ? "rgba(16,185,129,0.12)" : "rgba(248,113,113,0.12)";
 
               return (
@@ -314,9 +314,9 @@ export default function TraderProfileClient({ profile, trades, earnings }: Props
       style={{
         background:
           trade.side === "YES"
-            ? "rgba(16,185,129,0.15)"
+            ? "rgba(59,130,246,0.15)"
             : "rgba(248,113,113,0.15)",
-        color: trade.side === "YES" ? "#34d399" : "#f87171",
+        color: trade.side === "YES" ? "#60a5fa" : "#f87171",
       }}
     >
       {trade.side}
@@ -345,14 +345,14 @@ export default function TraderProfileClient({ profile, trades, earnings }: Props
     <div className="text-right shrink-0">
       <div
         className="text-[14px] font-bold tabular-nums"
-        style={{ color: isUp ? "#34d399" : "#f87171" }}
+        style={{ color: isUp ? "#60a5fa" : "#f87171" }}
       >
         {trade.pnl}
       </div>
 
       <div
         className="text-[10px] tabular-nums"
-        style={{ color: isUp ? "#34d399" : "#f87171" }}
+        style={{ color: isUp ? "#60a5fa" : "#f87171" }}
       >
         {isUp ? "+" : ""}
         {trade.pnlPercent}%

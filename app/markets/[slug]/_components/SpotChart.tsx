@@ -44,8 +44,8 @@ export function SpotChart({ spotSymbol, spotData, spotLoading, isMobile, priceTo
               <AreaChart data={spotData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="spotGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%"   stopColor="#34d399" stopOpacity={0.18} />
-                    <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                    <stop offset="0%"   stopColor="#60a5fa" stopOpacity={0.18} />
+                    <stop offset="100%" stopColor="#60a5fa" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="date" tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(spotData.length / (isMobile ? 3 : 5)))} />
@@ -54,7 +54,7 @@ export function SpotChart({ spotSymbol, spotData, spotLoading, isMobile, priceTo
                 {priceToBeat != null && (
                   <ReferenceLine y={priceToBeat} stroke="#f59e0b" strokeDasharray="6 3" strokeWidth={1.5} label={{ value: `Target $${priceToBeat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, position: "insideTopRight", fill: "#f59e0b", fontSize: 9, fontWeight: 600 }} />
                 )}
-                <Area type="monotone" dataKey="value" stroke="#34d399" strokeWidth={2} fill="url(#spotGrad)" dot={false} activeDot={{ r: 3, strokeWidth: 0 }} />
+                <Area type="monotone" dataKey="value" stroke="#60a5fa" strokeWidth={2} fill="url(#spotGrad)" dot={false} activeDot={{ r: 3, strokeWidth: 0 }} />
               </AreaChart>
             </ResponsiveContainer>
           )}

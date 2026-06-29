@@ -142,7 +142,7 @@ function UsernameStep({
     <div className="flex flex-col gap-5">
       {/* Header */}
       <div className="text-center">
-        <div className="w-12 h-12 rounded-2xl bg-[#34d399]/10 border border-[#34d399]/20 flex items-center justify-center mx-auto mb-4">
+        <div className="w-12 h-12 rounded-2xl bg-[#60a5fa]/10 border border-[#60a5fa]/20 flex items-center justify-center mx-auto mb-4">
           <span className="text-xl">✦</span>
         </div>
         <h2 className="text-[20px] font-bold text-white leading-tight">Pick a username</h2>
@@ -164,10 +164,10 @@ function UsernameStep({
             onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
             placeholder="yourname"
             maxLength={30}
-            className="w-full pl-8 pr-4 py-3.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[#34d399]/50 focus:bg-white/[0.06] outline-none text-white text-[15px] font-medium placeholder:text-gray-700 transition-all duration-150"
+            className="w-full pl-8 pr-4 py-3.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[#60a5fa]/50 focus:bg-white/[0.06] outline-none text-white text-[15px] font-medium placeholder:text-gray-700 transition-all duration-150"
           />
           {isValid && (
-            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#34d399]">
+            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#60a5fa]">
               <CheckIcon />
             </span>
           )}
@@ -183,7 +183,7 @@ function UsernameStep({
         <button
           onClick={handleSubmit}
           disabled={!isValid || loading}
-          className="w-full py-3 rounded-xl bg-[#34d399] hover:bg-[#3ee6aa] active:scale-[0.98] text-black text-[14px] font-bold transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full py-3 rounded-xl bg-[#60a5fa] hover:bg-[#2563eb] active:scale-[0.98] text-black text-[14px] font-bold transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {loading ? "Saving…" : "Set username"}
         </button>
@@ -340,7 +340,7 @@ export default function AuthModal({ isOpen, onClose, defaultMode = "signup" }: A
           onClick={(e) => e.stopPropagation()}
         >
           {/* Top accent line */}
-          <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(52,211,153,0.5), transparent)" }} />
+          <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(96,165,250,0.5), transparent)" }} />
 
           {/* Close button */}
           <button
@@ -419,7 +419,7 @@ export default function AuthModal({ isOpen, onClose, defaultMode = "signup" }: A
                   {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
                   <button
                     onClick={() => setMode(isSignup ? "login" : "signup")}
-                    className="text-[#34d399] hover:text-[#3ee6aa] font-semibold transition-colors"
+                    className="text-[#60a5fa] hover:text-[#2563eb] font-semibold transition-colors"
                   >
                     {isSignup ? "Log in" : "Sign up"}
                   </button>
