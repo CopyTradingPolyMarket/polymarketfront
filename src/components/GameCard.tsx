@@ -222,7 +222,7 @@ export default function GameCard({ game, showColumns }: { game: Game; showColumn
 
   const applyLive = (m: GameMarket): GameMarket => {
     const lp = live[m.id];
-    if (!lp) return m;
+    if (!lp || (lp.yes <= 0 && lp.no <= 0)) return m;
     return { ...m, options: m.options.map((o, i) => ({ ...o, probability: i === 0 ? lp.yes : lp.no })) };
   };
 
