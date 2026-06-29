@@ -135,6 +135,8 @@ interface ChartPt { date: string; [key: string]: number | string }
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
+function round1(v: number): number { return Math.round(v * 10) / 10; }
+
 function PriceBtn({ label, cents, lead, selected, onClick }: { label: string; cents: number; lead: boolean; selected?: boolean; onClick?: () => void }) {
   return (
     <button onClick={onClick} className={`flex-1 rounded-lg px-2 py-2 text-center transition-all cursor-pointer ${
@@ -143,7 +145,7 @@ function PriceBtn({ label, cents, lead, selected, onClick }: { label: string; ce
       "bg-white/[0.04] text-gray-400 border border-white/[0.06] hover:bg-white/[0.08]"
     }`}>
       <div className="text-[11px] font-semibold truncate">{label}</div>
-      <div className={`text-[13px] font-bold tabular-nums ${selected ? "text-blue-300" : lead ? "text-emerald-300" : "text-gray-300"}`}>{cents}¢</div>
+      <div className={`text-[13px] font-bold tabular-nums ${selected ? "text-blue-300" : lead ? "text-emerald-300" : "text-gray-300"}`}>{cents.toFixed(1)}¢</div>
     </button>
   );
 }
@@ -154,7 +156,7 @@ function MoneylineSection({ markets, home, away, onSelect, selectedId }: { marke
     const outcomes: O[] = markets.map(m => {
       const raw = extractMlLabel(m.title);
       const isDraw = /\bdraw\b|\btie\b/i.test(m.title);
-      return { label: isDraw ? "Draw" : raw, cents: Math.round(m.options[0]?.probability ?? 0), mkt: m, order: isDraw ? 1 : m.title.toLowerCase().includes(home.toLowerCase()) ? 0 : 2 };
+      return { label: isDraw ? "Draw" : raw, cents: round1(m.options[0]?.probability ?? 0), mkt: m, order: isDraw ? 1 : m.title.toLowerCase().includes(home.toLowerCase()) ? 0 : 2 };
     });
     outcomes.sort((a,b) => a.order - b.order);
     const max = Math.max(...outcomes.map(o=>o.cents));
@@ -165,7 +167,7 @@ function MoneylineSection({ markets, home, away, onSelect, selectedId }: { marke
     );
   }
   if (markets.length === 1) {
-    const m = markets[0], p0 = Math.round(m.options[0]?.probability??0), p1 = Math.round(m.options[1]?.probability??0);
+    const m = markets[0], p0 = round1(m.options[0]?.probability??0), p1 = round1(m.options[1]?.probability??0);
     return (
       <div className="flex gap-2">
         <PriceBtn label={abbr(home)} cents={p0} lead={p0>p1} selected={selectedId===m.id} onClick={()=>onSelect(m,"yes")} />
@@ -183,7 +185,7 @@ function ScaleSection({ markets, home, away, type, onSelect, selectedId }: { mar
 
   if (!active || active.options.length < 2) return null;
   const o = active.options;
-  const p0 = Math.round(o[0].probability), p1 = Math.round(o[1].probability);
+  const p0 = round1(o[0].probability), p1 = round1(o[1].probability);
   let l0: string, l1: string;
   if (type === "sp") {
     const ln = active.line ?? 0;
@@ -216,7 +218,7 @@ function GenericSection({ markets, onSelect, selectedId }: { markets: Mkt[]; onS
   return (
     <div className="space-y-2">
       {markets.map(m => {
-        const p0 = Math.round(m.options[0]?.probability??0), p1 = Math.round(m.options[1]?.probability??0);
+        const p0 = round1(m.options[0]?.probability??0), p1 = round1(m.options[1]?.probability??0);
         const shortTitle = m.title.split(":").pop()?.trim() ?? m.title;
         return (
           <div key={m.id}>
@@ -454,7 +456,7 @@ export default function SportsGamePage() {
           <div className="flex items-center justify-between">
             <div className="flex-1 min-w-0 mr-3">
               <p className="text-[12px] text-gray-400 truncate">{selectedMarket.title}</p>
-              <p className="text-[14px] font-bold text-white">{selectedSide === "yes" ? selectedMarket.options[0]?.label : selectedMarket.options[1]?.label} {Math.round((selectedSide === "yes" ? selectedMarket.options[0]?.probability : selectedMarket.options[1]?.probability) ?? 0)}¢</p>
+              <p className="text-[14px] font-bold text-white">{selectedSide === "yes" ? selectedMarket.options[0]?.label : selectedMarket.options[1]?.label} {round1((selectedSide === "yes" ? selectedMarket.options[0]?.probability : selectedMarket.options[1]?.probability) ?? 0).toFixed(1)}¢</p>
             </div>
             <button className="px-5 py-2 rounded-xl bg-blue-600 text-white text-[13px] font-semibold shrink-0">Trade</button>
           </div>

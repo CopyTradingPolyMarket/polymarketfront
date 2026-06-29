@@ -134,6 +134,8 @@ export function getTotal(game: Game): GameMarket | null {
   return pickTotal(game.markets, new Set());
 }
 
+function round1(v: number): number { return Math.round(v * 10) / 10; }
+
 function PriceBtn({ label, cents, lead }: { label: string; cents: number; lead: boolean }) {
   return (
     <div
@@ -144,7 +146,7 @@ function PriceBtn({ label, cents, lead }: { label: string; cents: number; lead: 
       }`}
     >
       <div className="truncate">{label}</div>
-      <div className={`text-[12px] font-bold ${lead ? "text-emerald-300" : "text-gray-300"}`}>{cents}¢</div>
+      <div className={`text-[12px] font-bold ${lead ? "text-emerald-300" : "text-gray-300"}`}>{cents.toFixed(1)}¢</div>
     </div>
   );
 }
@@ -169,7 +171,7 @@ function MoneylineCol({ markets, homeTeam, awayTeam }: { markets: GameMarket[]; 
         const raw = extractMlLabel(m.title);
         const isDraw = /\bdraw\b|\btie\b|\btied\b/i.test(m.title);
         const label = isDraw ? "Draw" : abbrev(raw);
-        const cents = Math.round(m.options[0]?.probability ?? 0);
+        const cents = round1(m.options[0]?.probability ?? 0);
         const order = isDraw ? 1 : m.title.toLowerCase().includes(homeTeam.toLowerCase()) ? 0 : 2;
         return { label, cents, order };
       })
@@ -188,8 +190,8 @@ function MoneylineCol({ markets, homeTeam, awayTeam }: { markets: GameMarket[]; 
 
   // 2-way: single binary market — options[0]=Yes (home), options[1]=No (away)
   const m = markets[0];
-  const p0 = Math.round(m.options[0]?.probability ?? 0);
-  const p1 = Math.round(m.options[1]?.probability ?? 0);
+  const p0 = round1(m.options[0]?.probability ?? 0);
+  const p1 = round1(m.options[1]?.probability ?? 0);
   return (
     <div className="flex gap-1 flex-1">
       <PriceBtn label={abbrev(homeTeam)} cents={p0} lead={p0 > p1} />
@@ -202,8 +204,8 @@ function SpreadTotalCol({ market, homeTeam, awayTeam, type }: { market: GameMark
   if (!market || market.options.length < 2) return <EmptyCol />;
 
   const o = market.options;
-  const p0 = Math.round(o[0].probability);
-  const p1 = Math.round(o[1].probability);
+  const p0 = round1(o[0].probability);
+  const p1 = round1(o[1].probability);
 
   let label0: string;
   let label1: string;
