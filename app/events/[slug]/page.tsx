@@ -46,7 +46,7 @@ function PriceBtn({ label, cents, lead, selected, onClick }: { label: string; ce
   return (
     <button onClick={onClick} className={`px-4 py-2 rounded-lg text-[12px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
       selected ? "bg-blue-500/20 text-blue-400 border-2 border-blue-500/40" :
-      lead ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25" :
+      lead ? "bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25" :
       "bg-white/[0.04] text-gray-400 border border-white/[0.06] hover:bg-white/[0.08]"
     }`}>
       {label} <span className="font-bold">{cents}¢</span>
@@ -70,7 +70,7 @@ function BetPanel({ market, side, onSideChange }: { market: Mkt | null; side: "y
     <div className="rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-5">
       <p className="text-[13px] text-gray-200 font-medium mb-3 truncate">{market.title}</p>
       <div className="flex gap-2 mb-4">
-        <button onClick={() => onSideChange("yes")} className={`flex-1 py-2 rounded-lg text-[13px] font-bold transition-colors ${side === "yes" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-white/[0.04] text-gray-400 border border-white/[0.06]"}`}>
+        <button onClick={() => onSideChange("yes")} className={`flex-1 py-2 rounded-lg text-[13px] font-bold transition-colors ${side === "yes" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-white/[0.04] text-gray-400 border border-white/[0.06]"}`}>
           Yes {Math.round(market.options[0]?.probability ?? 0)}¢
         </button>
         <button onClick={() => onSideChange("no")} className={`flex-1 py-2 rounded-lg text-[13px] font-bold transition-colors ${side === "no" ? "bg-red-500/20 text-red-400 border border-red-500/30" : "bg-white/[0.04] text-gray-400 border border-white/[0.06]"}`}>
@@ -192,14 +192,14 @@ export default function EventPage() {
                   <AreaChart data={chartData}>
                     <defs>
                       <linearGradient id="evGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.15} />
-                        <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                        <stop offset="0%" stopColor="#2563eb" stopOpacity={0.15} />
+                        <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <XAxis dataKey="date" tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(chartData.length / 5))} />
                     <YAxis domain={[0, 100]} tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} width={35} />
                     <Tooltip contentStyle={{ background: "rgba(10,10,13,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }} />
-                    <Area type="monotone" dataKey="probability" stroke="#3b82f6" strokeWidth={2} fill="url(#evGrad)" dot={false} />
+                    <Area type="monotone" dataKey="probability" stroke="#2563eb" strokeWidth={2} fill="url(#evGrad)" dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -234,13 +234,13 @@ export default function EventPage() {
                       onClick={() => handleSelect(m, "yes")}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          {arrow && <span className={`text-[16px] ${arrow === "↑" ? "text-emerald-400" : "text-red-400"}`}>{arrow}</span>}
+                          {arrow && <span className={`text-[16px] ${arrow === "↑" ? "text-blue-400" : "text-red-400"}`}>{arrow}</span>}
                           <span className="text-[14px] font-semibold text-gray-200 truncate">{label}</span>
                         </div>
                         <span className="text-[11px] text-gray-600">{formatVolume(m.volume, { thousandDigits: 1 })} Vol</span>
                       </div>
                       <div className="w-16 text-right">
-                        <span className={`text-[16px] font-bold tabular-nums ${p0 > 50 ? "text-emerald-400" : "text-gray-300"}`}>{p0}%</span>
+                        <span className={`text-[16px] font-bold tabular-nums ${p0 > 50 ? "text-blue-400" : "text-gray-300"}`}>{p0}%</span>
                       </div>
                       <div className="flex gap-1.5 shrink-0">
                         <PriceBtn label="Yes" cents={p0} lead={p0 > p1} selected={isSelected && selectedSide === "yes"} onClick={() => handleSelect(m, "yes")} />

@@ -28,7 +28,7 @@ function MarketIllustration() {
       <rect x="82" y="62" width="22" height="16" rx="3" fill="#ef4444" />
       <rect x="82" y="62" width="22" height="8" rx="3" fill="#ef4444" />
       <rect x="82" y="70" width="22" height="8" rx="0" fill="#ffffff" fillOpacity="0.9"/>
-      <rect x="82" y="70" width="22" height="8" rx="3" fill="#3b82f6" />
+      <rect x="82" y="70" width="22" height="8" rx="3" fill="#2563eb" />
 
       <text x="114" y="74" fontFamily="DM Sans, sans-serif" fontSize="11" fill="#6b7280">Politics · Global Elections</text>
       <text x="82" y="100" fontFamily="DM Sans, sans-serif" fontSize="16" fontWeight="600" fill="#f3f4f6">Peru Presidential Election</text>
@@ -51,8 +51,8 @@ function MarketIllustration() {
       <text x="174" y="187" textAnchor="middle" fontFamily="DM Sans, sans-serif" fontSize="11" fontWeight="600" fill="#fff">No</text>
 
       {/* Chart line */}
-      <polyline points="220,175 240,155 260,160 280,140 300,145 320,125 330,130" stroke="#3b82f6" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="330" cy="130" r="3.5" fill="#3b82f6" />
+      <polyline points="220,175 240,155 260,160 280,140 300,145 320,125 330,130" stroke="#2563eb" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="330" cy="130" r="3.5" fill="#2563eb" />
 
       {/* Floating badge */}
       <rect x="240" y="50" width="100" height="28" rx="8" fill="#1e3a5f" stroke="#2563eb" strokeWidth="1" />
@@ -128,9 +128,9 @@ function WinIllustration() {
 
       {/* Confetti dots */}
       {[
-        [80, 60, "#f59e0b"], [90, 100, "#3b82f6"], [70, 140, "#ec4899"],
+        [80, 60, "#f59e0b"], [90, 100, "#2563eb"], [70, 140, "#ec4899"],
         [330, 70, "#10b981"], [320, 115, "#f59e0b"], [340, 150, "#8b5cf6"],
-        [110, 175, "#3b82f6"], [300, 180, "#ec4899"],
+        [110, 175, "#2563eb"], [300, 180, "#ec4899"],
       ].map(([cx, cy, fill], i) => (
         <circle key={i} cx={cx as number} cy={cy as number} r="5" fill={fill as string} fillOpacity="0.8" />
       ))}
@@ -152,7 +152,7 @@ const SLIDES: Slide[] = [
     description:
       "Buy 'Yes' or 'No' shares depending on your prediction. Odds shift in real time as other traders get in on the action.",
     illustration: <MarketIllustration />,
-    accent: "bg-[#34d399]",
+    accent: "bg-[#60a5fa]",
   },
   {
     step: 2,
@@ -168,7 +168,7 @@ const SLIDES: Slide[] = [
     description:
       "When the market resolves, winning shares pay out $1 each. Withdraw your profits to your wallet or reinvest into the next big event.",
     illustration: <WinIllustration />,
-    accent: "bg-emerald-600",
+    accent: "bg-blue-600",
   },
 ];
 
@@ -346,14 +346,14 @@ export default function HowItWorksModal({ isOpen, onClose }: HowItWorksModalProp
             {isLast ? (
               <button
                 onClick={onClose}
-                className="px-5 py-2 text-[13px] font-semibold text-white bg-[#34d399] hover:bg-[#3ee6aa] rounded-lg transition-colors cursor-pointer"
+                className="px-5 py-2 text-[13px] font-semibold text-white bg-[#60a5fa] hover:bg-[#2563eb] rounded-lg transition-colors cursor-pointer"
               >
                 Get Started
               </button>
             ) : (
               <button
                 onClick={() => go(1)}
-                className="px-5 py-2 text-[13px] font-semibold text-white bg-[#34d399] hover:bg-[#3ee6aa] rounded-lg transition-colors cursor-pointer"
+                className="px-5 py-2 text-[13px] font-semibold text-white bg-[#60a5fa] hover:bg-[#2563eb] rounded-lg transition-colors cursor-pointer"
               >
                 Next
               </button>

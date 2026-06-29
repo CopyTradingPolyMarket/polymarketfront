@@ -39,7 +39,7 @@ interface Props {
 
 // Accent color per option, by position. Stable + readable; first is green to
 // match the reference. Override per-option via MarketOption.color.
-const PALETTE = ["#34d399", "#3b82f6", "#a855f7", "#f59e0b", "#ef4444", "#14b8a6", "#eab308", "#ec4899"];
+const PALETTE = ["#60a5fa", "#2563eb", "#a855f7", "#f59e0b", "#ef4444", "#14b8a6", "#eab308", "#ec4899"];
 
 // Rough implied payout multiplier if the API doesn't send one directly.
 function impliedMultiplier(probability: number): number {
@@ -82,12 +82,12 @@ function OptionRow({ option, index, onClick }: { option: MarketOption; index: nu
 
   const flashGlow =
     dir === "up"
-      ? "0 0 10px rgba(52,211,153,0.3)"
+      ? "0 0 10px rgba(96,165,250,0.3)"
       : dir === "down"
       ? "0 0 10px rgba(248,113,113,0.3)"
       : "none";
   const flashBorder =
-    dir === "up" ? "rgba(52,211,153,0.55)" : dir === "down" ? "rgba(248,113,113,0.55)" : undefined;
+    dir === "up" ? "rgba(96,165,250,0.55)" : dir === "down" ? "rgba(248,113,113,0.55)" : undefined;
 
   return (
     <div
@@ -128,7 +128,7 @@ function OptionRow({ option, index, onClick }: { option: MarketOption; index: nu
           {multiplier.toFixed(2)}x
         </span>
         <span
-          className="text-[11px] font-bold text-white border border-emerald-500/50 rounded-full px-3 py-1 tabular-nums text-center min-w-[60px] transition-[box-shadow,border-color] duration-500 ease-out"
+          className="text-[11px] font-bold text-white border border-blue-500/50 rounded-full px-3 py-1 tabular-nums text-center min-w-[60px] transition-[box-shadow,border-color] duration-500 ease-out"
           style={{ borderColor: flashBorder, boxShadow: flashGlow }}
         >
           {pctDisplay}%

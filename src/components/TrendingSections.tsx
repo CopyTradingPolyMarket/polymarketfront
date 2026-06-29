@@ -38,7 +38,7 @@ interface Props {
 
 const DEFAULT_ROWS = 3;
 
-const UP   = "#34d399";
+const UP   = "#60a5fa";
 const DOWN = "#f87171";
 
 // Internal-fetch fallback only. Each section is either a sort-based feed
@@ -236,7 +236,7 @@ function Section({ section, rows }: { section: RankedSection; rows: number }) {
         className="flex items-center gap-2 mb-3 group"
       >
         <h2 className="text-[18px] font-bold text-white tracking-tight">{section.title}</h2>
-        <span className="text-emerald-400 text-xl group-hover:translate-x-0.5 transition">›</span>
+        <span className="text-blue-400 text-xl group-hover:translate-x-0.5 transition">›</span>
       </button>
 
       <div>

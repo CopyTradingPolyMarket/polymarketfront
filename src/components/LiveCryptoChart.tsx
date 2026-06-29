@@ -114,7 +114,7 @@ export default function LiveCryptoChart({ spotData, priceToBeat, spotSymbol, slu
           <p style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Current price</p>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
             {delta !== null && (
-              <span style={{ fontSize: 13, fontWeight: 700, color: above ? "#34d399" : "#f87171" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: above ? "#60a5fa" : "#f87171" }}>
                 {above ? "▲" : "▼"} ${fmtPrice(Math.abs(delta))}
               </span>
             )}
@@ -205,7 +205,7 @@ export default function LiveCryptoChart({ spotData, priceToBeat, spotSymbol, slu
         <span style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", fontWeight: 600 }}>
           {spotSymbol}
         </span>
-        <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#34d399", animation: "pulse 2s ease-in-out infinite" }} />
+        <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#60a5fa", animation: "pulse 2s ease-in-out infinite" }} />
         <span style={{ fontSize: 10, color: "#4b5563" }}>live · 30s</span>
         <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}`}</style>
       </div>

@@ -89,7 +89,7 @@ export default function ProfilePage() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#0c0c0e] flex items-center justify-center">
-        <div className="w-6 h-6 rounded-full border-2 border-[#34d399] border-t-transparent animate-spin" />
+        <div className="w-6 h-6 rounded-full border-2 border-[#60a5fa] border-t-transparent animate-spin" />
       </div>
     );
   }
@@ -98,7 +98,7 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen bg-[#0c0c0e] flex flex-col items-center justify-center gap-4 font-['DM_Sans',_sans-serif]">
         <p className="text-gray-400 text-[15px]">Connect wallet to view your profile</p>
-        <Link href="/" className="text-[#34d399] text-[13px] hover:underline">← Back to markets</Link>
+        <Link href="/" className="text-[#60a5fa] text-[13px] hover:underline">← Back to markets</Link>
       </div>
     );
   }
@@ -113,9 +113,9 @@ export default function ProfilePage() {
 
         {/* Header card */}
         <div className="rounded-2xl bg-[#0e0f11] border border-white/[0.07] p-6 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-[#34d399]/[0.06] via-transparent to-transparent pointer-events-none rounded-2xl" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#60a5fa]/[0.06] via-transparent to-transparent pointer-events-none rounded-2xl" />
           <div className="relative flex items-start gap-5">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#34d399] to-[#059669] flex items-center justify-center text-[20px] font-bold text-black shrink-0">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#60a5fa] to-[#059669] flex items-center justify-center text-[20px] font-bold text-black shrink-0">
               {getInitials(user?.name)}
             </div>
             <div className="flex-1 min-w-0">
@@ -179,7 +179,7 @@ export default function ProfilePage() {
                     <div className="flex items-center gap-5 shrink-0 text-right">
                       <div>
                         <p className="text-[10px] text-gray-500 mb-0.5">Side</p>
-                        <p className={`text-[13px] font-bold ${side === "YES" ? "text-[#34d399]" : "text-red-400"}`}>{side}</p>
+                        <p className={`text-[13px] font-bold ${side === "YES" ? "text-[#60a5fa]" : "text-red-400"}`}>{side}</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-gray-500 mb-0.5">Price</p>
@@ -199,7 +199,7 @@ export default function ProfilePage() {
                       </div>
                       <div>
                         <p className="text-[10px] text-gray-500 mb-0.5">P&L</p>
-                        <p className={`text-[13px] font-bold tabular-nums ${pnl >= 0 ? "text-[#34d399]" : "text-red-400"}`}>
+                        <p className={`text-[13px] font-bold tabular-nums ${pnl >= 0 ? "text-[#60a5fa]" : "text-red-400"}`}>
                           {pnl >= 0 ? "+" : ""}{fmt(pnl)}
                         </p>
                       </div>
@@ -235,7 +235,7 @@ export default function ProfilePage() {
                     <div className="flex items-center gap-5 shrink-0 text-right">
                       <div>
                         <p className="text-[10px] text-gray-500 mb-0.5">Side</p>
-                        <p className={`text-[13px] font-bold ${t.side === "YES" ? "text-[#34d399]" : "text-red-400"}`}>{t.side}</p>
+                        <p className={`text-[13px] font-bold ${t.side === "YES" ? "text-[#60a5fa]" : "text-red-400"}`}>{t.side}</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-gray-500 mb-0.5">Entry</p>
@@ -253,14 +253,14 @@ export default function ProfilePage() {
                       </div>
                       <div>
                         <p className="text-[10px] text-gray-500 mb-0.5">P&L</p>
-                        <p className={`text-[13px] font-bold tabular-nums ${pnlPos ? "text-[#34d399]" : "text-red-400"}`}>
+                        <p className={`text-[13px] font-bold tabular-nums ${pnlPos ? "text-[#60a5fa]" : "text-red-400"}`}>
                           {pnlPos && t.pnl !== 0 ? "+" : ""}{fmt(t.pnl)}
                         </p>
                       </div>
                       <div>
                         <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
                           t.status === "open"
-                            ? "text-[#34d399] bg-[#34d399]/10"
+                            ? "text-[#60a5fa] bg-[#60a5fa]/10"
                             : "text-gray-500 bg-white/[0.06]"
                         }`}>
                           {t.status}

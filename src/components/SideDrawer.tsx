@@ -161,9 +161,9 @@ export default function SideDrawer({ isOpen, onClose, onOpenAuth }: SideDrawerPr
           {/* USER CARD — logged in */}
           {authenticated ? (
             <div className="mb-5 rounded-2xl bg-white/[0.04] border border-white/[0.07] p-4 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#34d399]/[0.07] via-transparent to-transparent pointer-events-none rounded-2xl" />
+              <div className="absolute inset-0 bg-gradient-to-br from-[#60a5fa]/[0.07] via-transparent to-transparent pointer-events-none rounded-2xl" />
               <div className="flex items-center gap-3 relative">
-                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#34d399] to-[#059669] flex items-center justify-center text-[13px] font-bold text-black shrink-0">
+                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#60a5fa] to-[#059669] flex items-center justify-center text-[13px] font-bold text-black shrink-0">
                   {getInitials(userDb?.name)}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -181,23 +181,23 @@ export default function SideDrawer({ isOpen, onClose, onOpenAuth }: SideDrawerPr
                 </div>
                 <div className="text-right">
                   <p className="text-[11px] text-gray-500 uppercase tracking-wider">P&L</p>
-                  <p className={`text-[14px] font-semibold mt-0.5 tabular-nums ${userDb?.pnlPositive ? "text-[#34d399]" : "text-red-400"}`}>{userDb?.pnl}</p>
+                  <p className={`text-[14px] font-semibold mt-0.5 tabular-nums ${userDb?.pnlPositive ? "text-[#60a5fa]" : "text-red-400"}`}>{userDb?.pnl}</p>
                 </div>
               </div>
-              <button className="mt-3 w-full py-2 rounded-xl bg-[#34d399] hover:bg-[#3ee6aa] active:scale-[0.98] text-black text-[13px] font-semibold transition-all duration-150 cursor-pointer">
+              <button className="mt-3 w-full py-2 rounded-xl bg-[#60a5fa] hover:bg-[#2563eb] active:scale-[0.98] text-black text-[13px] font-semibold transition-all duration-150 cursor-pointer">
                 Deposit funds
               </button>
             </div>
           ) : (
             /* GUEST CTA */
             <div className="mb-5 rounded-2xl bg-white/[0.03] border border-white/[0.07] p-5 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#34d399]/[0.05] via-transparent to-transparent pointer-events-none rounded-2xl" />
+              <div className="absolute inset-0 bg-gradient-to-br from-[#60a5fa]/[0.05] via-transparent to-transparent pointer-events-none rounded-2xl" />
               <p className="text-[15px] font-semibold text-white relative">Start predicting</p>
               <p className="text-[12px] text-gray-400 mt-1 leading-relaxed relative">Trade on real-world events. No commissions.</p>
               <div className="mt-4 flex gap-2 relative">
                 <button
                   onClick={() => handleAuthClick("signup")}
-                  className="flex-1 py-2.5 rounded-xl bg-[#34d399] hover:bg-[#3ee6aa] active:scale-[0.98] text-black text-[13px] font-semibold transition-all duration-150 cursor-pointer"
+                  className="flex-1 py-2.5 rounded-xl bg-[#60a5fa] hover:bg-[#2563eb] active:scale-[0.98] text-black text-[13px] font-semibold transition-all duration-150 cursor-pointer"
                 >
                   Sign up free
                 </button>
@@ -225,7 +225,7 @@ export default function SideDrawer({ isOpen, onClose, onOpenAuth }: SideDrawerPr
                         onClick={onClose}
                         className="group flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/[0.05] active:bg-white/[0.08] transition-all duration-100 cursor-pointer"
                       >
-                        <span className="text-gray-500 group-hover:text-[#34d399] transition-colors duration-100">
+                        <span className="text-gray-500 group-hover:text-[#60a5fa] transition-colors duration-100">
                           <Icon />
                         </span>
                         <span className="text-[14px] font-medium">{label}</span>

@@ -25,10 +25,10 @@ body{
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #34d399;
+  background: #60a5fa;
   border-radius: 999px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #34d399;
+  background: #60a5fa;
 }

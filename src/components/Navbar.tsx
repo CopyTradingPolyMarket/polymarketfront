@@ -118,7 +118,7 @@ function SearchBar() {
     <div className={`relative z-50 transition-all duration-300 ease-out ${focused ? "w-[520px]" : "w-[320px]"}`}>
       <div className={`flex items-center gap-3 h-11 px-4 rounded-2xl transition-all duration-300 ${
         focused
-          ? "bg-[#151619] border border-[#34d399] shadow-[0_0_0_1px_rgba(99,102,241,.25),0_20px_80px_rgba(0,0,0,.6)]"
+          ? "bg-[#151619] border border-[#60a5fa] shadow-[0_0_0_1px_rgba(99,102,241,.25),0_20px_80px_rgba(0,0,0,.6)]"
           : "bg-[#1a1b1e] border border-[#2a2b2f]"
       }`}>
         <SearchIcon />
@@ -177,7 +177,7 @@ function SearchBar() {
                     </div>
                     {yesOpt && (
                       <div className="text-right shrink-0">
-                        <div className="text-[14px] font-bold text-emerald-400">
+                        <div className="text-[14px] font-bold text-blue-400">
                           {Math.round(yesOpt.probability)}%
                         </div>
                         <div className="text-[10px] text-gray-500">YES</div>
@@ -229,7 +229,7 @@ export default function Navbar() {
             </div>
             <button
               onClick={() => setHowItWorksOpen(true)}
-              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] text-[#34d399] hover:text-[#3ee6aa] active:scale-[0.98] transition-all duration-150 cursor-pointer"
+              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] text-[#60a5fa] hover:text-[#2563eb] active:scale-[0.98] transition-all duration-150 cursor-pointer"
             >
               <InfoIcon className="w-4 h-4" />
               <span className="font-medium">How it works</span>
@@ -263,7 +263,7 @@ export default function Navbar() {
                 </button>
                 <button
                   onClick={openSignup}
-                  className="px-3 py-1.5 text-[13px] font-medium text-white bg-[#34d399] hover:bg-[#3ee6aa] transition-colors rounded-lg cursor-pointer hidden sm:block"
+                  className="px-3 py-1.5 text-[13px] font-medium text-white bg-[#60a5fa] hover:bg-[#2563eb] transition-colors rounded-lg cursor-pointer hidden sm:block"
                 >
                   Sign Up
                 </button>

@@ -309,7 +309,7 @@ export default function MarketPage() {
           {(wsResolved !== null || isLocked) && (
             <div style={{ display: "flex", gap: 8 }}>
               {wsResolved !== null && (
-                <span style={{ fontSize: 11, fontWeight: 600, color: "#34d399", background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: 100, padding: "4px 12px" }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#60a5fa", background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.25)", borderRadius: 100, padding: "4px 12px" }}>
                   Resolved · {wsResolved === 1 ? "YES" : "NO"}
                 </span>
               )}
@@ -336,8 +336,8 @@ export default function MarketPage() {
                   {opt.label}
                   <span style={{
                     marginLeft: 7, padding: "2px 7px", borderRadius: 100, fontSize: 10,
-                    background: active ? (opt.probability >= 50 ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)") : "rgba(255,255,255,0.05)",
-                    color: active ? (opt.probability >= 50 ? "#34d399" : "#f87171") : "#6b7280",
+                    background: active ? (opt.probability >= 50 ? "rgba(59,130,246,0.15)" : "rgba(239,68,68,0.15)") : "rgba(255,255,255,0.05)",
+                    color: active ? (opt.probability >= 50 ? "#60a5fa" : "#f87171") : "#6b7280",
                   }}>{opt.probability}%</span>
                 </button>
               );
@@ -380,7 +380,7 @@ export default function MarketPage() {
                   {!m.image && <div style={{ width: 30, height: 30, borderRadius: 8, background: "#1a1a1e", flexShrink: 0 }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 12, color: "#d1d5db", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>{m.title}</p>
-                    <p style={{ fontSize: 11, color: "#34d399", fontWeight: 600, margin: "2px 0 0" }}>{m.options[0]?.probability ?? 0}% Yes</p>
+                    <p style={{ fontSize: 11, color: "#60a5fa", fontWeight: 600, margin: "2px 0 0" }}>{m.options[0]?.probability ?? 0}% Yes</p>
                   </div>
                 </button>
               ))}

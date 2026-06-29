@@ -26,7 +26,7 @@ export function MarketChart({ chartData, ohlcData, chartShape, chartLoading, ran
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: isMobile ? 36 : 44, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>{prob}%</span>
             {chartData.length > 1 && (
-              <span style={{ fontSize: 13, fontWeight: 600, color: trendUp ? "#34d399" : "#f87171" }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: trendUp ? "#60a5fa" : "#f87171" }}>
                 {trendUp ? "▲" : "▼"} {Math.abs(trend).toFixed(1)}%
               </span>
             )}

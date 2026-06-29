@@ -181,7 +181,7 @@ export default function CategoryPage({ category: categoryProp }: { category?: st
             <button
               onClick={() => setSub(null)}
               className={`text-left text-[12px] py-1 transition cursor-pointer ${
-                sub === null ? "text-emerald-400 font-semibold" : "text-gray-400 hover:text-white"
+                sub === null ? "text-blue-400 font-semibold" : "text-gray-400 hover:text-white"
               }`}
             >
               All markets
@@ -191,7 +191,7 @@ export default function CategoryPage({ category: categoryProp }: { category?: st
                 key={s}
                 onClick={() => setSub(s)}
                 className={`text-left text-[12px] py-1 transition cursor-pointer ${
-                  sub === s ? "text-emerald-400 font-semibold" : "text-gray-400 hover:text-white"
+                  sub === s ? "text-blue-400 font-semibold" : "text-gray-400 hover:text-white"
                 }`}
               >
                 {s}

@@ -141,12 +141,12 @@ function PriceBtn({ label, cents, lead }: { label: string; cents: number; lead: 
     <div
       className={`flex-1 rounded-lg px-1.5 py-1.5 text-center text-[11px] font-semibold tabular-nums leading-tight transition-colors ${
         lead
-          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+          ? "bg-blue-500/15 text-blue-400 border border-blue-500/20"
           : "bg-white/[0.04] text-gray-400 border border-white/[0.06]"
       }`}
     >
       <div className="truncate">{label}</div>
-      <div className={`text-[12px] font-bold ${lead ? "text-emerald-300" : "text-gray-300"}`}>{cents.toFixed(1)}¢</div>
+      <div className={`text-[12px] font-bold ${lead ? "text-blue-300" : "text-gray-300"}`}>{cents.toFixed(1)}¢</div>
     </div>
   );
 }

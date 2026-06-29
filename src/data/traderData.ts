@@ -145,7 +145,7 @@ export const EARNINGS_DATA: EarningsPoint[] = [
 
 export const SUGGESTED_TRADERS: SuggestedTrader[] = [
   { slug: "jaker",     name: "Jake R.",   handle: "@jaker",     avatar: "JR", avatarGrad: "linear-gradient(135deg,#f59e0b,#ef4444)", pnl: "+$27,400", winRate: 71, isUp: true },
-  { slug: "cleom",     name: "Cleo M.",   handle: "@cleom",     avatar: "CM", avatarGrad: "linear-gradient(135deg,#10b981,#059669)", pnl: "+$19,900", winRate: 68, isUp: true },
+  { slug: "cleom",     name: "Cleo M.",   handle: "@cleom",     avatar: "CM", avatarGrad: "linear-gradient(135deg, #3b82f6, #2563eb))", pnl: "+$19,900", winRate: 68, isUp: true },
   { slug: "tomw",      name: "Tom W.",    handle: "@tomw",      avatar: "TW", avatarGrad: "linear-gradient(135deg,#ec4899,#f43f5e)", pnl: "+$14,600", winRate: 65, isUp: true },
   { slug: "nikob",     name: "Niko B.",   handle: "@nikob",     avatar: "NB", avatarGrad: "linear-gradient(135deg,#14b8a6,#0ea5e9)", pnl: "+$9,300",  winRate: 63, isUp: true },
   { slug: "priyaseth", name: "Priya S.",  handle: "@priyaseth", avatar: "PS", avatarGrad: "linear-gradient(135deg,#0ea5e9,#06b6d4)", pnl: "+$31,700", winRate: 74, isUp: true },
