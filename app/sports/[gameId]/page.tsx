@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, Legend,
+  ResponsiveContainer, CartesianGrid,
 } from "recharts";
 
 import { API_BASE as API } from "@/src/config/api";
@@ -25,16 +25,31 @@ interface GameData {
   live: boolean; ended: boolean; markets: Mkt[];
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── League / sport helpers ──────────────────────────────────────────────────
 
 const LEAGUE: Record<string, string> = {
   fifwc:"FIFA World Cup",mlb:"MLB",wnba:"WNBA",nba:"NBA",atp:"ATP",wta:"WTA",
   "grand slam":"Grand Slam",cs2:"CS2",val:"Valorant",dota2:"Dota 2",
-  lol:"League of Legends",ufc:"UFC",challenger:"Challenger",
+  lol:"League of Legends",ufc:"UFC",challenger:"Challenger",nhl:"NHL",
 };
 function leagueName(c: string) { return LEAGUE[c.toLowerCase()] ?? c.toUpperCase(); }
 
+type SportKind = "tennis" | "soccer" | "basketball" | "baseball" | "hockey" | "mma" | "esports" | "generic";
+
+function sportKind(league: string): SportKind {
+  const l = league.toLowerCase();
+  if (["atp","wta","grand slam","challenger"].includes(l)) return "tennis";
+  if (["fifwc"].includes(l)) return "soccer";
+  if (["nba","wnba"].includes(l)) return "basketball";
+  if (["mlb"].includes(l)) return "baseball";
+  if (["nhl"].includes(l)) return "hockey";
+  if (["ufc"].includes(l)) return "mma";
+  if (["cs2","val","dota2","lol"].includes(l)) return "esports";
+  return "generic";
+}
+
 function abbr(n: string) {
+  if (!n) return "—";
   if (n.length <= 4) return n.toUpperCase();
   const w = n.split(/\s+/);
   return w.length >= 2 ? w.map(x=>x[0]).join("").toUpperCase().slice(0,3) : n.slice(0,3).toUpperCase();
@@ -46,11 +61,20 @@ function extractMlLabel(title: string) {
   return m ? m[1] : title.split(":")[0].trim();
 }
 
-function parseScore(raw: string|null): [string,string] {
-  if (!raw) return ["–","–"];
-  const f = raw.split(",")[0].trim();
-  const p = f.split("-");
-  return p.length >= 2 ? [p[0].trim(), p.slice(1).join("-").trim()] : [raw, ""];
+// Backend sends `score` as one string. We assume comma/slash/pipe separated
+// segments (one per set / period / inning), each "home-away".
+// tennis "6-3, 6-4, 2-1, 0-15" → [[6,3],[6,4],[2,1],[0,15]]   soccer "2-1" → [[2,1]]
+// Tweak the split() calls if your API formats scores differently.
+function parseScoreSegments(raw: string | null): [string, string][] {
+  if (!raw) return [];
+  return raw
+    .split(/[,/|]/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(seg => {
+      const p = seg.split(/[-–:]/).map(x => x.trim());
+      return [p[0] ?? "", p[1] ?? ""] as [string, string];
+    });
 }
 
 function statusLabel(g: GameData) {
@@ -62,22 +86,103 @@ function statusLabel(g: GameData) {
   return g.live ? "Live" : g.ended ? "Final" : "Upcoming";
 }
 
+function round1(v: number): number { return Math.round(v * 10) / 10; }
+
+// ─── Flag / avatar ───────────────────────────────────────────────────────────
+
+function Avatar({ name, size = 24 }: { name: string; size?: number }) {
+  return (
+    <div
+      className="rounded-full bg-white/[0.07] flex items-center justify-center font-bold text-gray-300 shrink-0"
+      style={{ width: size, height: size, fontSize: size * 0.36 }}
+    >
+      {abbr(name)}
+    </div>
+  );
+}
+
+// ─── Scoreboard (sport-specific) ─────────────────────────────────────────────
+
+function ScoreBoard({ game }: { game: GameData }) {
+  const kind = sportKind(game.league);
+  const segs = parseScoreSegments(game.score);
+  const live = game.live;
+  const status = statusLabel(game);
+
+  const LiveTag = (
+    <div className="flex items-center justify-center gap-1.5 mb-3">
+      {live && <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
+      <span className={`text-[12px] font-bold tracking-wide uppercase ${live ? "text-red-400" : "text-gray-500"}`}>{status}</span>
+    </div>
+  );
+
+  // ── Tennis / esports: row per competitor, big set numbers, current period boxed ──
+  if ((kind === "tennis" || kind === "esports") && segs.length > 0) {
+    const lastIdx = segs.length - 1;
+
+    const Row = ({ name, mine, theirs }: { name: string; mine: string[]; theirs: string[] }) => (
+      <div className="flex items-center gap-3">
+        <span className="text-[15px] font-semibold text-gray-200 w-[180px] truncate">{name}</span>
+        <div className="flex items-center gap-1.5 ml-auto">
+          {mine.map((v, i) => {
+            const isLive = i === lastIdx && live;
+            const won = !isLive && Number(v) > Number(theirs[i] ?? 0);
+            return (
+              <div
+                key={i}
+                className={`w-9 h-9 flex items-center justify-center text-[17px] tabular-nums rounded-md ${
+                  isLive
+                    ? "bg-blue-500/15 border border-blue-500/40 text-blue-300 font-bold"
+                    : won ? "text-white font-bold" : "text-gray-500 font-medium"
+                }`}
+              >
+                {v}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+
+    return (
+      <div>
+        {LiveTag}
+        <div className="max-w-md mx-auto space-y-2.5">
+          <Row name={game.homeTeam} mine={segs.map(s=>s[0])} theirs={segs.map(s=>s[1])} />
+          <Row name={game.awayTeam} mine={segs.map(s=>s[1])} theirs={segs.map(s=>s[0])} />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Everything else: big centered H – A ──
+  const main = segs[0] ?? ["–", "–"];
+  return (
+    <div>
+      {LiveTag}
+      <div className="flex items-center justify-center gap-8 md:gap-14">
+        <div className="text-center">
+          <Avatar name={game.homeTeam} size={44} />
+          <p className="text-[13px] font-semibold text-gray-200 mt-2">{game.homeTeam}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[42px] leading-none font-extrabold tabular-nums">{main[0]}</span>
+          <span className="text-[20px] text-gray-600">–</span>
+          <span className="text-[42px] leading-none font-extrabold tabular-nums">{main[1]}</span>
+        </div>
+        <div className="text-center">
+          <Avatar name={game.awayTeam} size={44} />
+          <p className="text-[13px] font-semibold text-gray-200 mt-2">{game.awayTeam}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Market grouping ────────────────────────────────────────────────────────
 
-const TYPE_ORDER = [
-  "moneyline","spreads","totals","both_teams_to_score","both_teams_to_score_first_half",
-  "both_teams_to_score_second_half","soccer_first_to_score","soccer_halftime_result",
-  "soccer_second_half_result","soccer_exact_score","soccer_team_totals",
-  "first_half_totals","second_half_totals","soccer_first_half_team_totals",
-  "soccer_second_half_team_totals","total_corners","soccer_team_total_corners",
-  "soccer_first_half_total_corners","soccer_second_half_total_corners",
-  "soccer_first_corner","soccer_game_corners_odd_even","nrfi",
-  "baseball_game_extra_innings","baseball_team_first_five_winner",
-  "baseball_team_first_five_spread","baseball_team_first_five_total",
-];
-
 const TYPE_LABEL: Record<string,string> = {
-  moneyline:"Moneyline", spreads:"Spreads", totals:"Totals",
+  moneyline:"Winner", spreads:"Spread", totals:"Total",
   both_teams_to_score:"Both Teams to Score",
   both_teams_to_score_first_half:"BTTS 1st Half",
   both_teams_to_score_second_half:"BTTS 2nd Half",
@@ -102,174 +207,298 @@ const TYPE_LABEL: Record<string,string> = {
   baseball_team_first_five_spread:"1st 5 Innings Spread",
   baseball_team_first_five_total:"1st 5 Innings Total",
 };
-
 function typeLabel(t: string) { return TYPE_LABEL[t] ?? t.replace(/_/g," ").replace(/\b\w/g, c => c.toUpperCase()); }
 
-interface MktGroup { type: string; label: string; markets: Mkt[] }
-
-function groupMarkets(markets: Mkt[]): MktGroup[] {
+function byType(markets: Mkt[]): Map<string, Mkt[]> {
   const map = new Map<string, Mkt[]>();
   for (const m of markets) {
     const t = m.sportsMarketType ?? "other";
-    const arr = map.get(t);
-    if (arr) arr.push(m); else map.set(t, [m]);
+    const arr = map.get(t); if (arr) arr.push(m); else map.set(t, [m]);
   }
-  const groups: MktGroup[] = [];
-  const added = new Set<string>();
-  for (const t of TYPE_ORDER) {
-    if (map.has(t)) { groups.push({ type: t, label: typeLabel(t), markets: map.get(t)! }); added.add(t); }
-  }
-  for (const [t, mkts] of map) {
-    if (!added.has(t)) groups.push({ type: t, label: typeLabel(t), markets: mkts });
-  }
-  return groups;
+  return map;
 }
 
 // ─── Chart ──────────────────────────────────────────────────────────────────
 
 type Range = "1H"|"6H"|"1D"|"1W"|"1M"|"ALL";
 const RANGE_API: Record<Range,string> = { "1H":"1h","6H":"6h","1D":"1d","1W":"1w","1M":"1m","ALL":"all" };
-const COLORS = ["#2563eb","#f59e0b","#6b7280"];
-
+// Blue brand: leader = bright blue, runner-up = light gray/white, third = slate.
+const COLORS = ["#3b82f6","#e5e7eb","#64748b"];
 interface ChartPt { date: string; [key: string]: number | string }
 
-// ─── Sub-components ─────────────────────────────────────────────────────────
+// ─── Outcome row (Kalshi-style, flat) ────────────────────────────────────────
 
-function round1(v: number): number { return Math.round(v * 10) / 10; }
-
-function PriceBtn({ label, cents, lead, selected, onClick }: { label: string; cents: number; lead: boolean; selected?: boolean; onClick?: () => void }) {
+function Delta({ value }: { value?: number }) {
+  if (value === undefined || Math.abs(value) < 0.5) return null;
+  const up = value >= 0;
   return (
-    <button onClick={onClick} className={`flex-1 rounded-lg px-2 py-2 text-center transition-all cursor-pointer ${
-      selected ? "bg-blue-500/20 text-blue-400 border-2 border-blue-500/40" :
-      lead ? "bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25" :
-      "bg-white/[0.04] text-gray-400 border border-white/[0.06] hover:bg-white/[0.08]"
-    }`}>
-      <div className="text-[11px] font-semibold truncate">{label}</div>
-      <div className={`text-[13px] font-bold tabular-nums ${selected ? "text-blue-300" : lead ? "text-blue-300" : "text-gray-300"}`}>{cents.toFixed(1)}¢</div>
-    </button>
+    <span className={`text-[11px] font-semibold tabular-nums ${up ? "text-blue-400" : "text-red-400"}`}>
+      {up ? "▲" : "▼"} {Math.abs(Math.round(value))}
+    </span>
   );
 }
 
-function MoneylineSection({ markets, home, away, onSelect, selectedId }: { markets: Mkt[]; home: string; away: string; onSelect: (m: Mkt, side: "yes"|"no") => void; selectedId: string | null }) {
-  if (markets.length >= 3) {
-    type O = { label: string; cents: number; mkt: Mkt; order: number };
-    const outcomes: O[] = markets.map(m => {
-      const raw = extractMlLabel(m.title);
-      const isDraw = /\bdraw\b|\btie\b/i.test(m.title);
-      return { label: isDraw ? "Draw" : raw, cents: round1(m.options[0]?.probability ?? 0), mkt: m, order: isDraw ? 1 : m.title.toLowerCase().includes(home.toLowerCase()) ? 0 : 2 };
-    });
-    outcomes.sort((a,b) => a.order - b.order);
-    const max = Math.max(...outcomes.map(o=>o.cents));
-    return (
-      <div className="flex gap-2">
-        {outcomes.map((o,i) => <PriceBtn key={i} label={o.label} cents={o.cents} lead={o.cents===max && max>0} selected={selectedId===o.mkt.id} onClick={()=>onSelect(o.mkt,"yes")} />)}
+function YesNo({
+  yesCents, noCents, onYes, onNo, selYes, selNo,
+}: {
+  yesCents: number; noCents: number;
+  onYes: () => void; onNo: () => void; selYes?: boolean; selNo?: boolean;
+}) {
+  return (
+    <div className="flex gap-2 shrink-0">
+      <button onClick={onYes} className={`w-[104px] rounded-lg px-3 py-2.5 text-[13px] font-semibold text-left transition-colors ${
+        selYes ? "bg-blue-500/25 text-blue-200 ring-1 ring-blue-400/50"
+               : "bg-blue-500/[0.08] text-blue-300 hover:bg-blue-500/[0.16]"}`}>
+        Yes <span className="float-right tabular-nums font-bold">{yesCents.toFixed(0)}¢</span>
+      </button>
+      <button onClick={onNo} className={`w-[104px] rounded-lg px-3 py-2.5 text-[13px] font-semibold text-left transition-colors ${
+        selNo ? "bg-red-500/25 text-red-200 ring-1 ring-red-400/50"
+              : "bg-red-500/[0.08] text-red-300 hover:bg-red-500/[0.16]"}`}>
+        No <span className="float-right tabular-nums font-bold">{noCents.toFixed(0)}¢</span>
+      </button>
+    </div>
+  );
+}
+
+function OutcomeRow({
+  label, sublabel, avatar, pct, delta, lineSelector,
+  yesCents, noCents, onYes, onNo, selYes, selNo,
+}: {
+  label: React.ReactNode; sublabel?: string; avatar?: string;
+  pct: number; delta?: number; lineSelector?: React.ReactNode;
+  yesCents: number; noCents: number;
+  onYes: () => void; onNo: () => void; selYes?: boolean; selNo?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-4 py-3.5">
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        {avatar !== undefined && <Avatar name={avatar} size={28} />}
+        <div className="min-w-0">
+          <div className="text-[14px] font-medium text-gray-100 truncate">{label}</div>
+          {sublabel && <p className="text-[11px] text-gray-500 truncate">{sublabel}</p>}
+          {lineSelector}
+        </div>
       </div>
-    );
+      <div className="flex items-center gap-2 justify-end shrink-0">
+        <span className="text-[18px] font-bold tabular-nums text-white">{Math.round(pct)}%</span>
+        <Delta value={delta} />
+      </div>
+      <YesNo yesCents={yesCents} noCents={noCents} onYes={onYes} onNo={onNo} selYes={selYes} selNo={selNo} />
+    </div>
+  );
+}
+
+// Pill line selector with ‹ › arrows (spreads / totals)
+function LinePills({ lines, active, setActive, fmt }: {
+  lines: number[]; active: number | null; setActive: (n: number)=>void; fmt: (n:number)=>string;
+}) {
+  if (lines.length <= 1) return null;
+  const idx = lines.findIndex(l => l === active);
+  const go = (d: number) => { const ni = Math.min(lines.length-1, Math.max(0, idx + d)); setActive(lines[ni]); };
+  return (
+    <div className="flex items-center gap-1 mt-1.5">
+      <button onClick={()=>go(-1)} disabled={idx<=0} className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-gray-300 disabled:opacity-30">‹</button>
+      {lines.map(ln => (
+        <button key={ln} onClick={()=>setActive(ln)} className={`px-2 py-0.5 rounded text-[12px] font-semibold tabular-nums transition-colors ${
+          active===ln ? "text-blue-300" : "text-gray-600 hover:text-gray-400"}`}>{fmt(ln)}</button>
+      ))}
+      <button onClick={()=>go(1)} disabled={idx>=lines.length-1} className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-gray-300 disabled:opacity-30">›</button>
+    </div>
+  );
+}
+
+interface SelState { id: string | null; side: "yes" | "no" }
+
+// ── Winner (moneyline) rows ──
+function WinnerRows({ markets, home, deltaByLabel, onSelect, sel }: {
+  markets: Mkt[]; home: string; deltaByLabel: Record<string, number>;
+  onSelect: (m: Mkt, side: "yes"|"no")=>void; sel: SelState;
+}) {
+  if (markets.length >= 3) {
+    const rows = markets.map(m => {
+      const isDraw = /\bdraw\b|\btie\b/i.test(m.title);
+      const label = isDraw ? "Draw" : extractMlLabel(m.title);
+      const order = isDraw ? 1 : m.title.toLowerCase().includes(home.toLowerCase()) ? 0 : 2;
+      const yes = round1(m.options[0]?.probability ?? 0);
+      return { m, label, order, yes };
+    }).sort((a,b)=>a.order-b.order);
+    return (<div className="divide-y divide-white/[0.05]">
+      {rows.map(({m,label,yes})=>(
+        <OutcomeRow key={m.id} label={label} avatar={label} pct={yes} delta={deltaByLabel[label]}
+          yesCents={yes} noCents={round1(100-yes)}
+          onYes={()=>onSelect(m,"yes")} onNo={()=>onSelect(m,"no")}
+          selYes={sel.id===m.id&&sel.side==="yes"} selNo={sel.id===m.id&&sel.side==="no"} />
+      ))}
+    </div>);
   }
   if (markets.length === 1) {
-    const m = markets[0], p0 = round1(m.options[0]?.probability??0), p1 = round1(m.options[1]?.probability??0);
-    return (
-      <div className="flex gap-2">
-        <PriceBtn label={abbr(home)} cents={p0} lead={p0>p1} selected={selectedId===m.id} onClick={()=>onSelect(m,"yes")} />
-        <PriceBtn label={abbr(away)} cents={p1} lead={p1>p0} selected={selectedId===m.id} onClick={()=>onSelect(m,"no")} />
-      </div>
-    );
+    const m = markets[0];
+    const p0 = round1(m.options[0]?.probability ?? 0), p1 = round1(m.options[1]?.probability ?? 0);
+    const l0 = m.options[0]?.label ?? home, l1 = m.options[1]?.label ?? "Away";
+    return (<div className="divide-y divide-white/[0.05]">
+      <OutcomeRow label={l0} avatar={l0} pct={p0} delta={deltaByLabel[l0]} yesCents={p0} noCents={p1}
+        onYes={()=>onSelect(m,"yes")} onNo={()=>onSelect(m,"no")}
+        selYes={sel.id===m.id&&sel.side==="yes"} selNo={sel.id===m.id&&sel.side==="no"} />
+      <OutcomeRow label={l1} avatar={l1} pct={p1} delta={deltaByLabel[l1]} yesCents={p1} noCents={p0}
+        onYes={()=>onSelect(m,"no")} onNo={()=>onSelect(m,"yes")}
+        selYes={sel.id===m.id&&sel.side==="no"} selNo={sel.id===m.id&&sel.side==="yes"} />
+    </div>);
   }
   return null;
 }
 
-function ScaleSection({ markets, home, away, type, onSelect, selectedId }: { markets: Mkt[]; home: string; away: string; type: "sp"|"tot"; onSelect: (m: Mkt, side: "yes"|"no") => void; selectedId: string | null }) {
-  const lines = [...new Set(markets.map(m => m.line).filter((l): l is number => l !== null))].sort((a,b) => a-b);
-  const [activeLine, setActiveLine] = useState<number|null>(lines[0]??null);
-  const active = markets.find(m => m.line === activeLine) ?? markets[0];
-
-  if (!active || active.options.length < 2) return null;
-  const o = active.options;
-  const p0 = round1(o[0].probability), p1 = round1(o[1].probability);
-  let l0: string, l1: string;
-  if (type === "sp") {
-    const ln = active.line ?? 0;
-    l0 = `${abbr(o[0].label)} ${ln>0?"+":""}${ln}`;
-    l1 = `${abbr(o[1].label)} ${ln>0?"-":"+"}${Math.abs(ln)}`;
-  } else {
-    l0 = `O ${active.line}`; l1 = `U ${active.line}`;
-  }
-
+// ── Scale row (spread / total) with line pills ──
+function ScaleRow({ markets, home, away, type, onSelect, sel }: {
+  markets: Mkt[]; home: string; away: string; type: "sp"|"tot";
+  onSelect: (m: Mkt, side: "yes"|"no")=>void; sel: SelState;
+}) {
+  const lines = [...new Set(markets.map(m=>m.line).filter((l): l is number => l!==null))].sort((a,b)=>a-b);
+  const [active, setActive] = useState<number|null>(lines[0] ?? null);
+  const m = markets.find(x=>x.line===active) ?? markets[0];
+  if (!m || m.options.length < 2) return null;
+  const p0 = round1(m.options[0].probability), p1 = round1(m.options[1].probability);
+  const ln = m.line ?? 0;
+  const titleNode = type==="sp"
+    ? (<><span className="text-gray-100">{home} </span><span className="text-blue-400 font-semibold">{ln>0?`+${ln}`:ln}</span><span className="text-gray-500"> games</span></>)
+    : (<><span className="text-gray-100">Over </span><span className="text-blue-400 font-semibold">{ln}</span><span className="text-gray-500"> games</span></>);
+  const l0 = type==="sp" ? `${abbr(home)} ${ln>0?"+":""}${ln}` : `Over ${ln}`;
+  const l1 = type==="sp" ? `${abbr(away)} ${ln>0?"-":"+"}${Math.abs(ln)}` : `Under ${ln}`;
   return (
-    <div>
-      {lines.length > 1 && (
-        <div className="flex gap-1 mb-3 overflow-x-auto scrollbar-none pb-1">
-          {lines.map(ln => (
-            <button key={ln} onClick={() => setActiveLine(ln)} className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${activeLine===ln ? "bg-white/10 text-white" : "bg-white/[0.04] text-gray-500 hover:text-gray-300"}`}>
-              {type === "sp" ? (ln > 0 ? `+${ln}` : `${ln}`) : ln}
-            </button>
-          ))}
-        </div>
-      )}
-      <div className="flex gap-2">
-        <PriceBtn label={l0} cents={p0} lead={p0>p1} selected={selectedId===active.id} onClick={()=>onSelect(active,"yes")} />
-        <PriceBtn label={l1} cents={p1} lead={p1>p0} selected={selectedId===active.id} onClick={()=>onSelect(active,"no")} />
-      </div>
-    </div>
+    <OutcomeRow
+      label={titleNode}
+      lineSelector={<LinePills lines={lines} active={active} setActive={setActive} fmt={(n)=>type==="sp"?(n>0?`+${n}`:`${n}`):`${n}`} />}
+      pct={p0} yesCents={p0} noCents={p1}
+      onYes={()=>onSelect(m,"yes")} onNo={()=>onSelect(m,"no")}
+      selYes={sel.id===m.id&&sel.side==="yes"} selNo={sel.id===m.id&&sel.side==="no"} />
   );
 }
 
-function GenericSection({ markets, onSelect, selectedId }: { markets: Mkt[]; onSelect: (m: Mkt, side: "yes"|"no") => void; selectedId: string | null }) {
+// ── Tabbed prop markets (Exact Score / Set Winner / Total Games …) ──
+function TabbedProps({ groups, onSelect, sel }: {
+  groups: { type: string; label: string; markets: Mkt[] }[];
+  onSelect: (m: Mkt, side: "yes"|"no")=>void; sel: SelState;
+}) {
+  const [tab, setTab] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  if (groups.length === 0) return null;
+  const active = groups[Math.min(tab, groups.length-1)];
+  const visible = expanded ? active.markets : active.markets.slice(0, 3);
   return (
-    <div className="space-y-2">
-      {markets.map(m => {
-        const p0 = round1(m.options[0]?.probability??0), p1 = round1(m.options[1]?.probability??0);
-        const shortTitle = m.title.split(":").pop()?.trim() ?? m.title;
-        return (
-          <div key={m.id}>
-            <p className="text-[11px] text-gray-500 mb-1 truncate">{shortTitle}</p>
-            <div className="flex gap-2">
-              <PriceBtn label={m.options[0]?.label ?? "Yes"} cents={p0} lead={p0>p1} selected={selectedId===m.id} onClick={()=>onSelect(m,"yes")} />
-              <PriceBtn label={m.options[1]?.label ?? "No"} cents={p1} lead={p1>p0} selected={selectedId===m.id} onClick={()=>onSelect(m,"no")} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
+    <section className="pt-8">
+      <div className="flex items-center gap-5 mb-4 overflow-x-auto scrollbar-none">
+        {groups.map((g, i) => (
+          <button key={g.type} onClick={()=>{setTab(i);setExpanded(false);}}
+            className={`text-[18px] font-bold whitespace-nowrap transition-colors ${i===tab ? "text-white" : "text-gray-600 hover:text-gray-400"}`}>
+            {g.label}
+          </button>
+        ))}
+      </div>
+      <div className="divide-y divide-white/[0.05]">
+        {visible.map(m => {
+          const p0 = round1(m.options[0]?.probability ?? 0), p1 = round1(m.options[1]?.probability ?? 0);
+          const short = m.title.split(":").pop()?.trim() ?? m.title;
+          return (
+            <OutcomeRow key={m.id} label={short} avatar={short} pct={p0} yesCents={p0} noCents={p1}
+              onYes={()=>onSelect(m,"yes")} onNo={()=>onSelect(m,"no")}
+              selYes={sel.id===m.id&&sel.side==="yes"} selNo={sel.id===m.id&&sel.side==="no"} />
+          );
+        })}
+      </div>
+      {active.markets.length > 3 && (
+        <button onClick={()=>setExpanded(e=>!e)} className="mt-3 text-[13px] font-semibold text-gray-400 hover:text-gray-200">
+          {expanded ? "Show less" : `${active.markets.length - 3} more`}
+        </button>
+      )}
+    </section>
   );
 }
 
 // ─── Bet Panel ──────────────────────────────────────────────────────────────
 
-function BetPanel({ market, side }: { market: Mkt | null; side: "yes"|"no" }) {
+function BetPanel({ market, side, setSide, vs }: { market: Mkt | null; side:"yes"|"no"; setSide:(s:"yes"|"no")=>void; vs: string }) {
+  const [mode, setMode] = useState<"buy"|"sell">("buy");
   const [amount, setAmount] = useState("");
-  if (!market) return (
-    <div className="rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-5">
-      <p className="text-gray-500 text-sm text-center py-8">Select an outcome to place a trade</p>
-    </div>
-  );
-  const opt = side === "yes" ? market.options[0] : market.options[1];
-  const prob = opt?.probability ?? 50;
-  const amtNum = Number(amount) || 0;
-  const shares = prob > 0 ? (amtNum / (prob / 100)) : 0;
 
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-5">
-      <p className="text-[11px] text-gray-500 uppercase tracking-wider font-semibold mb-3">Trade</p>
-      <p className="text-[13px] text-gray-200 font-medium mb-1 truncate">{market.title}</p>
-      <div className="flex gap-2 mb-4">
-        <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${side==="yes" ? "bg-blue-500/20 text-blue-400" : "bg-red-500/20 text-red-400"}`}>
-          {side === "yes" ? opt?.label ?? "Yes" : opt?.label ?? "No"} {Math.round(prob)}¢
-        </span>
-      </div>
-      <div className="mb-3">
-        <label className="text-[11px] text-gray-500 font-medium block mb-1">Amount (USD)</label>
-        <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00"
-          className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-white text-[14px] outline-none focus:border-white/20" />
-      </div>
-      <div className="flex justify-between text-[12px] text-gray-500 mb-4">
-        <span>Potential shares</span><span className="text-gray-300 tabular-nums">{shares.toFixed(2)}</span>
-      </div>
-      <button className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[13px] font-semibold transition-colors">
-        Connect wallet
+    <div className="space-y-3">
+      <button className="w-full py-3 rounded-2xl border border-white/[0.08] bg-[#0f0f12] text-[13px] font-bold text-gray-300 hover:bg-white/[0.03] flex items-center justify-center gap-2">
+        <span className="text-blue-400">◈</span> COMBO
       </button>
+
+      <div className="rounded-2xl border border-white/[0.08] bg-[#0f0f12] p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex gap-4">
+            {(["buy","sell"] as const).map(mm => (
+              <button key={mm} onClick={()=>setMode(mm)} className={`text-[13px] font-bold tracking-wide uppercase transition-colors ${mode===mm ? "text-white" : "text-gray-600 hover:text-gray-400"}`}>{mm}</button>
+            ))}
+          </div>
+          <span className="text-[12px] text-gray-500 font-medium">Dollars ▾</span>
+        </div>
+
+        {!market ? (
+          <p className="text-gray-500 text-[13px] text-center py-10">Select an outcome to trade</p>
+        ) : (() => {
+          const yesOpt = market.options[0], noOpt = market.options[1];
+          const cents = side==="yes" ? (yesOpt?.probability ?? 50) : (noOpt?.probability ?? 50);
+          const shares = cents>0 ? (Number(amount)||0)/(cents/100) : 0;
+          return (<>
+            <p className="text-[12px] text-gray-500 mb-1 truncate">{vs}</p>
+            <div className="flex items-center gap-2 mb-4">
+              <Avatar name={side==="yes" ? (yesOpt?.label ?? "Yes") : (noOpt?.label ?? "No")} size={24} />
+              <p className="text-[16px] font-bold text-white truncate">{side==="yes" ? (yesOpt?.label ?? "Yes") : (noOpt?.label ?? "No")}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <button onClick={()=>setSide("yes")} className={`py-2.5 rounded-xl text-[13px] font-bold transition-colors ${side==="yes" ? "bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/40" : "bg-white/[0.04] text-gray-400 hover:bg-white/[0.07]"}`}>
+                YES <span className="tabular-nums">{round1(yesOpt?.probability ?? 0).toFixed(0)}¢</span>
+              </button>
+              <button onClick={()=>setSide("no")} className={`py-2.5 rounded-xl text-[13px] font-bold transition-colors ${side==="no" ? "bg-red-500/20 text-red-300 ring-1 ring-red-500/40" : "bg-white/[0.04] text-gray-400 hover:bg-white/[0.07]"}`}>
+                NO <span className="tabular-nums">{round1(noOpt?.probability ?? 0).toFixed(0)}¢</span>
+              </button>
+            </div>
+
+            <div className="relative mb-4">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-[14px] pointer-events-none">Dollars</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 text-[15px] font-bold pointer-events-none">$</span>
+              <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder=""
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl pl-20 pr-7 py-3 text-white text-[15px] font-bold text-right outline-none focus:border-blue-500/40 tabular-nums" />
+            </div>
+
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] text-gray-500">Odds</span>
+                <span className="text-[13px] font-semibold text-gray-300 tabular-nums">{Math.round(cents)}% chance</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] text-gray-500">Max payout</span>
+                <span className="text-[18px] font-extrabold text-white tabular-nums">${shares.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <button className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[14px] font-bold transition-colors">
+              Connect wallet to trade
+            </button>
+          </>);
+        })()}
+      </div>
     </div>
   );
+}
+
+// ─── End-of-line label dot for the chart ─────────────────────────────────────
+
+function makeEndDot(label: string, color: string, lastIndex: number) {
+  return (props: any) => {
+    const { cx, cy, index, value } = props;
+    if (index !== lastIndex || cx == null) return <g key={`g${index}`} />;
+    return (
+      <g key={`end${index}`}>
+        <circle cx={cx} cy={cy} r={3.5} fill={color} />
+        <text x={cx + 8} y={cy - 5} fill={color} fontSize={11} fontWeight={700}>{label}</text>
+        <text x={cx + 8} y={cy + 10} fill={color} fontSize={13} fontWeight={800}>{Math.round(value)}%</text>
+      </g>
+    );
+  };
 }
 
 // ─── Page ───────────────────────────────────────────────────────────────────
@@ -284,10 +513,10 @@ export default function SportsGamePage() {
   const [chartData, setChartData] = useState<ChartPt[]>([]);
   const [chartLabels, setChartLabels] = useState<string[]>([]);
 
-  const [selectedMarket, setSelectedMarket] = useState<Mkt | null>(null);
-  const [selectedSide, setSelectedSide] = useState<"yes" | "no">("yes");
+  const [sel, setSel] = useState<SelState>({ id: null, side: "yes" });
+  const [selSide, setSelSide] = useState<"yes"|"no">("yes");
+  const selectedMarket = useMemo(() => (game?.markets ?? []).find(m => m.id === sel.id) ?? null, [game, sel.id]);
 
-  // Fetch game
   useEffect(() => {
     if (!gameId) return;
     fetch(`${API}/api/games/${gameId}`)
@@ -296,10 +525,8 @@ export default function SportsGamePage() {
       .catch(() => { setError(true); setLoading(false); });
   }, [gameId]);
 
-  // Moneyline markets for chart
   const mlMarkets = useMemo(() => (game?.markets ?? []).filter(m => m.sportsMarketType === "moneyline"), [game]);
 
-  // Fetch chart data (overlay moneyline histories)
   useEffect(() => {
     if (mlMarkets.length === 0) return;
     const apiRange = RANGE_API[range];
@@ -323,142 +550,163 @@ export default function SportsGamePage() {
         }
       });
       const sorted = [...timeMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-      const data: ChartPt[] = sorted.map(([t, vals]) => ({ date: formatRangeDate(t, apiRange), ...vals }));
-      setChartData(data);
+      setChartData(sorted.map(([t, vals]) => ({ date: formatRangeDate(t, apiRange), ...vals })));
       setChartLabels(labels);
     });
   }, [mlMarkets, range]);
 
-  // Group markets
-  const allGroups = useMemo(() => groupMarkets(game?.markets ?? []), [game]);
+  const { latestByLabel, deltaByLabel } = useMemo(() => {
+    const latest: Record<string, number> = {}, delta: Record<string, number> = {};
+    for (const label of chartLabels) {
+      const vals = chartData.map(d => d[label]).filter(v => typeof v === "number") as number[];
+      if (vals.length) { latest[label] = vals[vals.length-1]; delta[label] = vals[vals.length-1]-vals[0]; }
+    }
+    return { latestByLabel: latest, deltaByLabel: delta };
+  }, [chartData, chartLabels]);
 
-  const handleSelect = (m: Mkt, side: "yes" | "no") => {
-    setSelectedMarket(m); setSelectedSide(side);
-  };
+  // Section split: Winner | Spread&Total | the rest (tabbed)
+  const sections = useMemo(() => {
+    const map = byType(game?.markets ?? []);
+    const winner = map.get("moneyline") ?? [];
+    const spreadTypes = ["spreads","baseball_team_first_five_spread"];
+    const totalTypes  = ["totals","first_half_totals","second_half_totals","soccer_team_totals","baseball_team_first_five_total","total_corners","soccer_team_total_corners"];
+    const spread = spreadTypes.flatMap(t => map.get(t) ?? []);
+    const total  = totalTypes.flatMap(t => map.get(t) ?? []);
+    const used = new Set(["moneyline", ...spreadTypes, ...totalTypes]);
+    const rest = [...map.entries()].filter(([t])=>!used.has(t))
+      .map(([t, markets]) => ({ type: t, label: typeLabel(t), markets }));
+    return { winner, spread, total, rest };
+  }, [game]);
+
+  const handleSelect = (m: Mkt, side: "yes"|"no") => { setSel({ id: m.id, side }); setSelSide(side); };
 
   if (loading) return (
     <div className="min-h-screen bg-[#0a0a0d] flex items-center justify-center">
-      <div className="w-6 h-6 border-2 border-gray-700 border-t-white rounded-full animate-spin" />
+      <div className="w-6 h-6 border-2 border-gray-700 border-t-blue-500 rounded-full animate-spin" />
     </div>
   );
   if (error || !game) return (
-    <div className="min-h-screen bg-[#0a0a0d] flex items-center justify-center">
-      <p className="text-gray-400">Game not found</p>
-    </div>
+    <div className="min-h-screen bg-[#0a0a0d] flex items-center justify-center"><p className="text-gray-400">Game not found</p></div>
   );
 
-  const [hs, as] = parseScore(game.score);
   const totalVol = game.markets.reduce((s, m) => s + (m.volume || 0), 0);
+  const lastIdx = chartData.length - 1;
+  const vs = `${game.homeTeam} vs ${game.awayTeam}`;
 
   return (
-    <div className="min-h-screen bg-[#0a0a0d] text-white">
-      {/* Breadcrumb */}
-      <div className="max-w-6xl mx-auto px-4 pt-4 pb-2">
-        <p className="text-[12px] text-gray-500">
-          <span className="hover:text-gray-300 cursor-pointer" onClick={() => window.history.back()}>Sports</span>
-          <span className="mx-1.5">·</span>
-          <span>{leagueName(game.league)}</span>
-        </p>
-      </div>
+    <div className="min-h-screen bg-[#0a0a0d] text-white" style={{ fontFamily: "'DM Sans','Helvetica Neue',sans-serif" }}>
+      <div className="max-w-6xl mx-auto px-5 pt-6 pb-28 lg:pb-12">
+        <div className="lg:grid lg:grid-cols-[1fr_340px] lg:gap-10 lg:items-start">
 
-      {/* Header */}
-      <div className="max-w-6xl mx-auto px-4 pb-6">
-        <div className="rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-6">
-          <div className="flex items-center justify-center gap-8 md:gap-16">
-            {/* Home */}
-            <div className="text-center">
-              <div className="w-14 h-14 rounded-full bg-white/[0.06] flex items-center justify-center text-[18px] font-bold text-gray-300 mx-auto mb-2">{abbr(game.homeTeam)}</div>
-              <p className="text-[14px] font-semibold text-gray-200">{game.homeTeam}</p>
-            </div>
-            {/* Score */}
-            <div className="text-center">
-              <div className="flex items-center gap-3 mb-1">
-                <span className="text-[36px] font-extrabold tabular-nums">{hs}</span>
-                <span className="text-[20px] text-gray-600 font-medium">–</span>
-                <span className="text-[36px] font-extrabold tabular-nums">{as}</span>
-              </div>
-              <div className="flex items-center justify-center gap-1.5">
-                {game.live && <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
-                <span className={`text-[12px] font-semibold ${game.live ? "text-red-400" : "text-gray-500"}`}>{statusLabel(game)}</span>
-              </div>
-              {totalVol > 0 && <p className="text-[11px] text-gray-600 mt-1">{formatVolume(totalVol, { thousandDigits: 1 })} Vol</p>}
-            </div>
-            {/* Away */}
-            <div className="text-center">
-              <div className="w-14 h-14 rounded-full bg-white/[0.06] flex items-center justify-center text-[18px] font-bold text-gray-300 mx-auto mb-2">{abbr(game.awayTeam)}</div>
-              <p className="text-[14px] font-semibold text-gray-200">{game.awayTeam}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+          {/* LEFT — flat column */}
+          <div className="min-w-0">
 
-      {/* Main content */}
-      <div className="max-w-6xl mx-auto px-4 pb-12">
-        <div className="flex gap-6">
-          {/* Left column */}
-          <div className="flex-1 min-w-0 space-y-6">
+            {/* Header */}
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-[12px] font-extrabold text-blue-400 shrink-0">
+                {leagueName(game.league).split(/\s+/).map(w=>w[0]).join("").slice(0,3).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold tracking-[0.1em] text-gray-500 uppercase">
+                  Sports · {leagueName(game.league)}
+                </p>
+                <h1 className="text-[26px] font-extrabold leading-tight tracking-tight truncate">{vs}</h1>
+              </div>
+              <div className="hidden sm:flex items-center gap-1 shrink-0 text-gray-500">
+                {["▦","💬","↗","⤓"].map((ic,i)=>(
+                  <button key={i} className="w-9 h-9 rounded-lg hover:bg-white/[0.05] flex items-center justify-center text-[14px]">{ic}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Scoreboard */}
+            <div className="mt-7 mb-6"><ScoreBoard game={game} /></div>
 
             {/* Chart */}
             {chartData.length > 0 && (
-              <div className="rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-[13px] text-gray-400 font-semibold">Probability</p>
-                  <div className="flex gap-1">
-                    {(["1H","6H","1D","1W","1M","ALL"] as Range[]).map(r => (
-                      <button key={r} onClick={() => setRange(r)} className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${range===r ? "bg-white/10 text-white" : "text-gray-600 hover:text-gray-400"}`}>{r}</button>
-                    ))}
-                  </div>
+              <div className="border-t border-white/[0.06] pt-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[12px] font-semibold text-gray-500 flex items-center gap-1.5"><span className="text-gray-600">▥</span> Stats</span>
                 </div>
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={chartData}>
-                    <XAxis dataKey="date" tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(chartData.length / 5))} />
-                    <YAxis domain={[0, 100]} tick={{ fill: "#4b5563", fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} width={35} />
-                    <Tooltip contentStyle={{ background: "rgba(10,10,13,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }} />
-                    <Legend verticalAlign="top" height={28} wrapperStyle={{ fontSize: 11 }} />
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={chartData} margin={{ top: 8, right: 84, left: 0, bottom: 0 }}>
+                    <CartesianGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="3 4" vertical={false} />
+                    <XAxis dataKey="date" tick={{ fill: "#4b5563", fontSize: 10 }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(chartData.length / 5))} />
+                    <YAxis domain={[0,100]} orientation="right" tick={{ fill: "#4b5563", fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v=>`${v}%`} width={36} ticks={[0,25,50,75,100]} />
+                    <Tooltip contentStyle={{ background: "rgba(10,10,13,0.95)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 10, fontSize: 12 }} />
                     {chartLabels.map((label, i) => (
-                      <Line key={label} type="monotone" dataKey={label} stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={false} />
+                      <Line key={label} type="monotone" dataKey={label} stroke={COLORS[i % COLORS.length]} strokeWidth={2} isAnimationActive={false}
+                        dot={makeEndDot(label, COLORS[i % COLORS.length], lastIdx)} activeDot={{ r: 4, strokeWidth: 0 }} />
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-[12px] text-gray-500 tabular-nums">{totalVol>0 ? `${formatVolume(totalVol,{thousandDigits:1})} vol` : ""}</span>
+                  <div className="flex gap-3">
+                    {(["1H","6H","1D","1W","1M","ALL"] as Range[]).map(r => (
+                      <button key={r} onClick={()=>setRange(r)} className={`text-[12px] font-bold transition-colors ${range===r ? "text-blue-400" : "text-gray-600 hover:text-gray-400"}`}>{r}</button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* Market sections */}
-            {allGroups.map(group => (
-              <div key={group.type} className="rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-[13px] font-semibold text-gray-300">{group.label}</h3>
-                  <span className="text-[11px] text-gray-600">{group.markets.length} market{group.markets.length !== 1 ? "s" : ""}</span>
+            {/* Chance (winner) */}
+            {sections.winner.length > 0 && (
+              <section className="border-t border-white/[0.06] mt-6 pt-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[12px] font-semibold text-gray-500">Chance</span>
+                  <span className="text-gray-600 text-[13px]">⇅</span>
                 </div>
-                {group.type === "moneyline" ? (
-                  <MoneylineSection markets={group.markets} home={game.homeTeam} away={game.awayTeam} onSelect={handleSelect} selectedId={selectedMarket?.id ?? null} />
-                ) : group.type === "spreads" || group.type === "baseball_team_first_five_spread" ? (
-                  <ScaleSection markets={group.markets} home={game.homeTeam} away={game.awayTeam} type="sp" onSelect={handleSelect} selectedId={selectedMarket?.id ?? null} />
-                ) : group.type === "totals" || group.type.includes("total") ? (
-                  <ScaleSection markets={group.markets} home={game.homeTeam} away={game.awayTeam} type="tot" onSelect={handleSelect} selectedId={selectedMarket?.id ?? null} />
-                ) : (
-                  <GenericSection markets={group.markets} onSelect={handleSelect} selectedId={selectedMarket?.id ?? null} />
-                )}
-              </div>
-            ))}
+                <WinnerRows markets={sections.winner} home={game.homeTeam} deltaByLabel={deltaByLabel} onSelect={handleSelect} sel={sel} />
+              </section>
+            )}
+
+            {/* Spread and Total */}
+            {(sections.spread.length > 0 || sections.total.length > 0) && (
+              <section className="pt-8">
+                <h2 className="text-[18px] font-bold mb-1">Spread and Total</h2>
+                <div className="divide-y divide-white/[0.05]">
+                  {sections.spread.length > 0 && (
+                    <ScaleRow markets={sections.spread} home={game.homeTeam} away={game.awayTeam} type="sp" onSelect={handleSelect} sel={sel} />
+                  )}
+                  {sections.total.length > 0 && (
+                    <ScaleRow markets={sections.total} home={game.homeTeam} away={game.awayTeam} type="tot" onSelect={handleSelect} sel={sel} />
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Tabbed props (Exact Score / Set Winner / …) */}
+            <TabbedProps groups={sections.rest} onSelect={handleSelect} sel={sel} />
+
+            {/* Info */}
+            <div className="mt-8 rounded-xl border border-blue-500/15 bg-blue-500/[0.04] p-4">
+              <p className="text-[13px] text-gray-300 leading-relaxed">
+                <span className="font-bold text-gray-100">How it settles:</span> live markets update with the game and resolve when the result is final. Prices reflect the current implied chance — they can move fast while the game is in play.
+              </p>
+            </div>
           </div>
 
-          {/* Right: bet panel (desktop) */}
-          <div className="hidden lg:block w-[300px] shrink-0 sticky top-4 self-start">
-            <BetPanel market={selectedMarket} side={selectedSide} />
+          {/* RIGHT — bet panel */}
+          <div className="hidden lg:block sticky top-6 self-start">
+            <BetPanel market={selectedMarket} side={selSide} setSide={setSelSide} vs={vs} />
           </div>
         </div>
       </div>
 
-      {/* Mobile bet panel */}
+      {/* Mobile bet bar */}
       {selectedMarket && (
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-white/[0.06] bg-[#0f0f12] p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 min-w-0 mr-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
               <p className="text-[12px] text-gray-400 truncate">{selectedMarket.title}</p>
-              <p className="text-[14px] font-bold text-white">{selectedSide === "yes" ? selectedMarket.options[0]?.label : selectedMarket.options[1]?.label} {round1((selectedSide === "yes" ? selectedMarket.options[0]?.probability : selectedMarket.options[1]?.probability) ?? 0).toFixed(1)}¢</p>
+              <p className="text-[14px] font-bold text-white">
+                {selSide==="yes" ? selectedMarket.options[0]?.label : selectedMarket.options[1]?.label}{" "}
+                <span className="tabular-nums text-blue-400">{round1((selSide==="yes" ? selectedMarket.options[0]?.probability : selectedMarket.options[1]?.probability) ?? 0).toFixed(0)}¢</span>
+              </p>
             </div>
-            <button className="px-5 py-2 rounded-xl bg-blue-600 text-white text-[13px] font-semibold shrink-0">Trade</button>
+            <button className="px-6 py-2.5 rounded-xl bg-blue-600 text-white text-[13px] font-bold shrink-0">Trade</button>
           </div>
         </div>
       )}
